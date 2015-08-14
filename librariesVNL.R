@@ -1,4 +1,4 @@
-## Libraries to install and source (so it is done once) for VNL
+## Libraries to install and source (so it is done once) for VNL and KidneyProject
 install.packages("plyr");
 library(plyr);
 install.packages("ggplot2");
@@ -46,4 +46,8 @@ library(UsingR);
 install.packages("lubridate");
 library(lubridate);
 
-
+# SQL
+install.packages("sqldf");
+install.packages("XLConnect");
+library(sqldf);
+library(XLConnect);
