@@ -1,7 +1,7 @@
 ## Libraries to install and source (so it is done once) for VNL and KidneyProject
-install.packages("plyr");
+install.packages(c("plyr", "stringi", "ggplot2"));
 library(plyr);
-install.packages("ggplot2");
+library(stringi);
 library(ggplot2);
 # Installing Gaussian Process Library
 install.packages("tgp");
@@ -36,10 +36,13 @@ library(vcd);
 
 library(lmtest);
 library(sandwich);
+install.packages("quantreg");
+library(quantreg);
 library(car);
 library(zoo);
 library(scales);
 library(igraph);
+install.packages("UsingR");
 library(UsingR);
 
 # Package for dealing with dates
@@ -51,3 +54,4 @@ install.packages("sqldf");
 install.packages("XLConnect");
 library(sqldf);
 library(XLConnect);
+library(DBI);
