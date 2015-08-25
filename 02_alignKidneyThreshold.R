@@ -39,8 +39,6 @@ for (i in 1:length(listfiles)) {
     load(file = sprintf("%s%s", dDir, listfiles[i]));
 }
 
-
-
 # FUNCTION TO CHANGE FACTOR TO NUMERIC
 f2n <- function(val) {
     # FUNCTION TO CHANGE FACTOR TO NUMERIC
