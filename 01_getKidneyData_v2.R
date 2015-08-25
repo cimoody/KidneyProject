@@ -178,7 +178,12 @@ getResultDateKIDSQL <- function(dbfile, query, cutoff, tID){
 
 makeLists <- 0; # It takes a while to remake all the lists, so I would recommend only making the ones you need
 if (makeLists) { # Code to create lists of dataframes. Set makeLists <- 1 to run.
+    goodlab <- getDF(dbfile = dbfile, thisQuery = labQuery);
     CREAT_1523_gt20 <- getResultDateKIDSQL(dbfile, labQuery, cutoff = 20, tID = tID_CREAT);
     K_1520_gt20 <- getResultDateKIDSQL(dbfile, labQuery, cutoff = 20, tID = tID_K);
     P_1555_gt20 <- getResultDateKIDSQL(dbfile, labQuery, cutoff = 20, tID = tID_P);
+}
+if (makeLists) {# Code to save newly made lists for future use in r
+    save(goodlab, file = paste(dDir, "goodlab.rda", sep = ""));
+    save(CREAT_1523_gt20, K_1520_gt20, P_1555_gt20, file = paste(dDir, "THRESHOLD_LABS.rda", sep = ""));
 }
