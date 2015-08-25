@@ -33,6 +33,13 @@ dbfile <- paste(dDir, "CKD", sep = "");
 # db <- dbConnect(SQLite(), dbname = dbfile);
 # remember to call db <- dbDisconnect(db) when finished!
 
+# Loading all files - it won't work as a function :(
+listfiles <- list.files(path = dDir, pattern = "\\.rda");
+for (i in 1:length(listfiles)) {
+    load(file = sprintf("%s%s", dDir, listfiles[i]));
+}
+
+
 
 # FUNCTION TO CHANGE FACTOR TO NUMERIC
 f2n <- function(val) {
