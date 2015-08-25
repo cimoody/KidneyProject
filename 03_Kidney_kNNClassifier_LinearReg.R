@@ -35,22 +35,234 @@ for (i in 1:length(listfiles)) {
     load(file = sprintf("%s%s", dDir, listfiles[i]));
 }
 
+# function to get total number of rows in the data frames in a list
+testf <- function(testList){
+    # function to get total number of rows in the data frames in a list
+    m <- c();
+    for (j in 1:length(testList)) {
+        m[j] <- sprintf("List %s has %s rows for STUDYID %s",
+                        j, nrow(testList[[j]]), testList[[j]]$STUDYID[1]);
+    }
+    return(m);
+}
+
+# Function to create ORDERING_DATE2
+addORDDATE2 <- function(ListOfDataFrames) {
+    # Function to create ORDERING_DATE2 which is the difference in days from the first lab
+    for (j in 1:length(ListOfDataFrames)){
+        ListOfDataFrames[[j]]$ORDERING_DATE2 <- ListOfDataFrames[[j]]$ORDERING_DATE -
+            ListOfDataFrames[[j]]$ORDERING_DATE[1];
+    }
+    return(ListOfDataFrames);
+}
+
+# Function to start PROPER_TIME for INT_FLAG==0 at some random negative time before 100 days (in hours)
+startPTIME <- function(ListOfDataFrames, random = 1){
+    # Function to start PROPER_TIME for INT_FLAG==0 at some random negative time before 100 days
+    x <- sample(4392:17544, length(ListOfDataFrames), replace = F); # Hours at least 6 months negative
+    for (j in 1:length(ListOfDataFrames)){
+        if (ListOfDataFrames[[j]]$PROPER_TIME[1] == 0 & ListOfDataFrames[[j]]$INT_FLAG[1] == 0){
+            if (!random) {
+                y <- as.numeric(ListOfDataFrames[[j]][which.max(ListOfDataFrames[[j]]$LAB_RES_VAL_NUM),]$PROPER_TIME);
+                ListOfDataFrames[[j]]$PROPER_TIME <- as.numeric(
+                    ListOfDataFrames[[j]]$PROPER_TIME) - y;
+            } else if (random) {
+                ListOfDataFrames[[j]]$PROPER_TIME <- as.numeric(
+                    ListOfDataFrames[[j]]$PROPER_TIME) - x[j];
+            }
+        }
+    }
+    return(ListOfDataFrames);
+}
+
+# nms creates a character vector with "_day" to rename the columns in a dataframe
+nms <- function(n) {
+    # nms creates a character vector with "_day" to rename the columns in a dataframe
+    ns <- c();
+    for (i in -10:0) {
+        ns <- cbind( t(paste(n, i, sep = "_")), ns);
+    }
+    return(t(ns));
+}
+# Case 1 function
+case1 <- function(thisDf, ChangingVars) {
+    # Converting a dataframe of patient labs into a single row with only the threshold day and ten days earlier kept.
+    # Missing data is filled in with previous good result or last result.
+    # Checking that ChangingVars are column names in thisDf
+    if (any(ChangingVars %in% names(thisDf)==FALSE)){
+        print("COLUMNS LISTED IN ChangingVars NOT PRESENT IN thisDf. BREAK");
+        break;
+    }
+    newDf <- data.frame(PT =(-(10:0)), VT1=NA, VT2=NA, VT3=NA, VT4=NA, VT5=NA, VT7=NA, VT8=NA);
+    names(newDf) <- ChangingVars;
+    # What this does is reference the row space of newDf that corresponds to a row in thisDf
+    # by looking at the value of PT in both of them.
+    newDf[ newDf$PROPER_TIME %in% thisDf$PROPER_TIME, ] <- thisDf[ thisDf$PROPER_TIME %in% newDf$PROPER_TIME, ];
+    # Change rownames to stringerized version of $PT
+    rownames(newDf) = sprintf("%s", newDf$PROPER_TIME); # Rename the row to match PROPER_TIME
+    namesSub <- tail(ChangingVars, -1);
+    LastBeforeTen <- as.numeric(thisDf[ thisDf$PROPER_TIME %in% newDf$PROPER_TIME, ]$PROPER_TIME[1]);
+    # LastBeforeTen is NA when patient returns.
+    if(is.na(LastBeforeTen)){print("NO LastBeforeTen in case1()"); next;}
+    newRow <- newDf[ newDf$PROPER_TIME == LastBeforeTen, ];
+    newDf <- rbind(newRow, newDf); # Add last measured value before 10 days before threshold
+    newDf[namesSub] <- na.locf(newDf[namesSub], fromLast = F)
+    newDf[head(ChangingVars, -1)] <- apply(newDf[head(ChangingVars, -1)], 2, function(x) as.numeric(x));
+    newDf[order(nrow(newDf):1),] <- newDf; # Invert so that PROPER_TIME counts down from 0 to -10.
+    newDf <- head(newDf, -1); # Removing fill row
+    finalDf <- as.vector(as.matrix(t(newDf))); # to convert to a row!
+    finalnms <- as.vector((nms(ChangingVars))); # Names for new columns
+    names(finalDf) <- finalnms; # Change column names
+    finalDf <- as.data.frame(t(finalDf)); # Convert to data frame
+    # Changing all numbers back to numeric!
+    numcols <- as.vector(nms(head(ChangingVars, -1))); # Columns that are numeric
+    datcols <- as.vector(nms(tail(ChangingVars, 1))); # Columns that are dates
+    finalDf[numcols] <- apply(finalDf[numcols], 2, function(x) as.numeric(as.character(x))); # Change columns to numeric
+    finalDf[datcols] <- apply(finalDf[datcols], 2, function(x) as.numeric(as.character(x))); # Change columns to numeric
+    finalDf <- cbind(finalDf$ORDERING_DATE2_0, finalDf); # Adding Threshold Time to dataframe
+    names(finalDf)[names(finalDf)=="finalDf$ORDERING_DATE2_0"] <- "THRESHOLD_TIME";
+    return(finalDf);
+}
+# Case 2 function
+case2 <- function(thisDf, ChangingVars) {
+    # Converting a dataframe of patient labs into a single row with only the threshold day and ten days earlier kept.
+    # Missing data is filled in with previous good result or last result.
+    # Checking that ChangingVars are column names in thisDf
+    if (any(ChangingVars %in% names(thisDf)==FALSE)){
+        print("COLUMNS LISTED IN ChangingVars NOT PRESENT IN thisDf. BREAK");
+        break;
+    }
+    newDf <- data.frame(PT =(-(10:0)), VT1=NA, VT2=NA, VT3=NA, VT4=NA, VT5=NA, VT6=NA, VT7=NA);
+    names(newDf) <- ChangingVars;
+    # What this does is reference the row space of newDf that corresponds to a row in thisDf
+    # by looking at the value of PT in both of them.
+    newDf[ newDf$PROPER_TIME %in% thisDf$PROPER_TIME, ] <- thisDf[ thisDf$PROPER_TIME %in% newDf$PROPER_TIME, ];
+    # Change rownames to stringerized version of $PT
+    rownames(newDf) = sprintf("%s", newDf$PROPER_TIME); # Rename the row to match PROPER_TIME
+    namesSub <- tail(ChangingVars, -1);
+    # Getting last filled PROPER_TIME in thisDf in the 10 days before threshold
+    LastBeforeTen <- as.numeric(thisDf[ thisDf$PROPER_TIME %in% newDf$PROPER_TIME, ]$PROPER_TIME[1]);
+    if (is.na(LastBeforeTen)) {LastBeforeTen <- -10.1;}
+    # Getting the measurement before 10 days from threshold
+    newRow <- thisDf[ thisDf$PROPER_TIME < LastBeforeTen, ]; # Data frame of values before 10 days before threshold
+    newRow <- newRow[nrow(newRow), ]; # first values before 10 days before threshold
+    newDf <- rbind(newRow, newDf); # Add last measured value before 10 days before threshold
+    rownames(newDf) = sprintf("%s", newDf$PROPER_TIME); # Rename the row to match PROPER_TIME
+    newDf[namesSub] <- na.locf(newDf[namesSub], fromLast = F);
+    newDf[head(ChangingVars, -1)] <- apply(newDf[head(ChangingVars, -1)], 2, function(x) as.numeric(x));
+    newDf[order(nrow(newDf):1),] <- newDf; # Invert so that PROPER_TIME counts down from 0 to -10.
+    rownames(newDf) = sprintf("%s", newDf$PROPER_TIME); # Rename the row to match PROPER_TIME
+    newDf <- head(newDf, -1); # Removing fill row
+    finalDf <- as.vector(as.matrix(t(newDf))); # to convert to a row!
+    finalnms <- as.vector((nms(ChangingVars))); # Names for new columns
+    names(finalDf) <- finalnms; # Change column names
+    finalDf <- as.data.frame(t(finalDf)); # Convert to data frame
+    # Changing all numbers back to numeric!
+    numcols <- as.vector(nms(head(ChangingVars, -1))); # Columns that are numeric
+    datcols <- as.vector(nms(tail(ChangingVars, 1))); # Columns that are dates
+    finalDf[numcols] <- apply(finalDf[numcols], 2, function(x) as.numeric(as.character(x))); # Change columns to numeric
+    finalDf[datcols] <- apply(finalDf[datcols], 2, function(x) as.numeric(as.character(x))); # Change columns to numeric
+    finalDf <- cbind(newRow$PROPER_TIME, finalDf); # Adding Threshold Time to dataframe
+    finalDf$`newRow$PROPER_TIME` <- 0 - finalDf$`newRow$PROPER_TIME`;
+    names(finalDf)[names(finalDf)=="newRow$PROPER_TIME"] <- "THRESHOLD_TIME";
+    return(finalDf);
+}
+# Case 3 function
+case3 <- function(thisDf, ChangingVars) {
+    # Converting a dataframe of patient labs into a single row with only the threshold day and ten days earlier kept.
+    # Missing data is filled in with previous good result or last result.
+    # Checking that ChangingVars are column names in thisDf
+    if (any(ChangingVars %in% names(thisDf)==FALSE)){
+        print("COLUMNS LISTED IN ChangingVars NOT PRESENT IN thisDf. BREAK");
+        break;
+    }
+    newDf <- data.frame(PT =(-(10:0)), VT1=NA, VT2=NA, VT3=NA, VT4=NA, VT5=NA, VT7=NA, VT8=NA);
+    names(newDf) <- ChangingVars;
+    # What this does is reference the row space of newDf that corresponds to a row in thisDf
+    # by looking at the value of PT in both of them.
+    newDf[ newDf$PROPER_TIME %in% thisDf$PROPER_TIME, ] <- thisDf[ thisDf$PROPER_TIME %in% newDf$PROPER_TIME, ];
+    # Change rownames to stringerized version of $PT
+    rownames(newDf) = sprintf("%s", newDf$PROPER_TIME); # Rename the row to match PROPER_TIME
+    namesSub <- tail(ChangingVars, -1);
+    newDf[namesSub] <- na.locf(newDf[namesSub], fromLast = F);
+    newDf[head(ChangingVars, -1)] <- apply(newDf[head(ChangingVars, -1)], 2, function(x) as.numeric(x));
+    newDf[order(nrow(newDf):1),] <- newDf; # Invert so that PROPER_TIME counts down from 0 to -10.
+    rownames(newDf) = sprintf("%s", newDf$PROPER_TIME); # Rename the row to match PROPER_TIME
+    finalDf <- as.vector(as.matrix(t(newDf))); # to convert to a row!
+    finalnms <- as.vector((nms(ChangingVars))); # Names for new columns
+    names(finalDf) <- finalnms; # Change column names
+    finalDf <- as.data.frame(t(finalDf)); # Convert to data frame
+    # Changing all numbers back to numeric!
+    numcols <- as.vector(nms(head(ChangingVars, -1))); # Columns that are numeric
+    datcols <- as.vector(nms(tail(ChangingVars, 1))); # Columns that are dates
+    finalDf[numcols] <- apply(finalDf[numcols], 2, function(x) as.numeric(as.character(x))); # Change columns to numeric
+    finalDf[datcols] <- apply(finalDf[datcols], 2, function(x) as.numeric(as.character(x))); # Change columns to numeric
+    finalDf <- cbind(finalDf$ORDERING_DATE2_0, finalDf); # Adding Threshold Time to dataframe
+    names(finalDf)[names(finalDf)=="finalDf$ORDERING_DATE2_0"] <- "THRESHOLD_TIME";
+    return(finalDf);
+}
+# Creates a training dataframe that will keep track of each point in time
+reorderPT <- function(ListOfDataFrames){
+    # Creates a training dataframe that will keep track of each point in time
+    # Starts after use of
+    #       originalListOfDataFrames <- getResultDateKIDSQL(...);
+    #       ListOfDataFrames <- returnProperTime(originalListOfDataFrames);
+    #       ListOfDataFrames <- getMeanSDListDataFrames(ListOfDataFrames);
+    #       ListOfDataFrames <- addORDDATE2(ListOfDataFrames);
+    #       ListOfDataFrames <- startPTIME(ListOfDataFrames, 0);
+    #       names(ListOfDataFrames[[j]])
+    #       [1] "ORDERING_DATE"   "LAB_RES_VAL_NUM" "LAB_RES_UNIT"    "STUDYID"         "orderid"
+    #       [6] "encid"           "REFERENCE_HIGH"  "REFERENCE_LOW"   "LAB_COMP_CD"     "LAB_PX_CD"
+    #       [11] "MIN_RAW_LABS"   "ORDERING_DATE2"  "PROPER_TIME"
+    newOrder <- data.frame();
+    varsNotChanging <- c("STUDYID", "MIN_RAW_LABS", "INT_FLAG",
+                         "LAB_COMP_CD", "LAB_RES_UNIT",
+                         "REFERENCE_LOW", "REFERENCE_HIGH");
+    varsChanging <- c("PROPER_TIME", "LAB_RES_VAL_NUM", "SD_ORD_VAL",  #### DO NOT CHANGE THIS VARIABLE (YOU WILL BREAK IT)
+                      "ORDERING_DATE2", "ORDERING_DATE", "orderid", "encid", "LAB_PX_CD"); # Plus WEIGHT
+    for (j in 1:length(ListOfDataFrames)){
+        ChangingDF <- ListOfDataFrames[[j]][varsChanging];
+        NotChangingDF <- ListOfDataFrames[[j]][varsNotChanging][1,];
+        # Changing days to numeric
+        ChangingDF$PROPER_TIME <- as.numeric(ChangingDF$PROPER_TIME);
+        ChangingDF$ORDERING_DATE2 <- as.numeric(ChangingDF$ORDERING_DATE2);
+        ChangingDF$ORDERING_DATE <- as.numeric(ChangingDF$ORDERING_DATE);
+        # Normalizing LAB_RES_VAL_NUM to LAB_RES_VAL_NUM/REFERENCE_HIGH
+        ChangingDF$LAB_RES_VAL_NUM <- ChangingDF$LAB_RES_VAL_NUM/f2n(NotChangingDF$REFERENCE_HIGH);
+        ChangingDF$SD_ORD_VAL <- ChangingDF$SD_ORD_VAL/f2n(NotChangingDF$REFERENCE_HIGH);
+        if (as.numeric(min(ChangingDF$PROPER_TIME)) > -10) {
+            print(j); print("AAAAAA");
+            ChangingDF <- case1(ChangingDF, varsChanging);
+        } else if ( as.numeric(min(ChangingDF$PROPER_TIME)) < -10) {
+            print(j); print("BBBBBB");
+            ChangingDF <- case2(ChangingDF, varsChanging);
+        } else if ( as.numeric(min(ChangingDF$PROPER_TIME)) == -10){
+            print(j); print("CCCCCC");
+            ChangingDF <- case3(ChangingDF, varsChanging);
+        } else {print("BREAK"); break;}
+        Order <- cbind(NotChangingDF, ChangingDF);
+        rownames(Order) <- sprintf("%s.%s_%s", NotChangingDF$encid,
+                                   NotChangingDF$STUDYID, ChangingDF$`ORDERING_DATE_-10`);
+        newOrder <- rbind(Order, newOrder);
+    }
+    return(newOrder);
+}
 
 # Getting matrix for 'meta' patient for regression from lists
 getTimeTrainMatrix <- function(originalListOfDataFrames, random = 1){
     # Getting matrix for 'meta' patient for regression from lists in time
     # Function returnProperTime() from alignThreshold.R - returns PROPER_TIME and INT_FLAG
-    ListOfDataFrames <- returnProperTime(originalListOfDataFrames);
+    ListOfDataFrames <- returnProperTime(originalListOfDataFrames); # def in 02_alignKidneyThreshold.R
     if (class(ListOfDataFrames)=='numeric') {print("NO SERIES PASSED PROPER_TIME CUT"); break;}
     # Removing labs that are repeated on the same day and replacing with mean and sd
-    ListOfDataFrames <- getMeanSDListDataFrames(ListOfDataFrames);
+    ListOfDataFrames <- getMeanSDListDataFrames(ListOfDataFrames); # def in 02_alignKidneyThreshold.R
     # Creating ORDERING_DATE2
-    ListOfDataFrames <- addORDDATE2(ListOfDataFrames);
+    ListOfDataFrames <- addORDDATE2(ListOfDataFrames); # def above
     # Starting patients that do not cross threshold at random
-    # negative days between 6 months and 2 years before threshold
-    ListOfDataFrames <- startPTIME(ListOfDataFrames, random);
-    # Organizing into giant dataframe with only 10 days before threshold
-    TrainDF <- reorderPT(ListOfDataFrames);
+    # negative days between 6 months and 2 years before threshold (in hours)
+    ListOfDataFrames <- startPTIME(ListOfDataFrames, random); # def above
+    # Organizing into giant dataframe with only 10 days before threshold (in hours)
+    TrainDF <- reorderPT(ListOfDataFrames); # def above
     #     # Subset TrainDF into only interesting cases (INT_FLAG==1) # Oleg said to remove
     #     TrainDF <- TrainDF[TrainDF$INT_FLAG==1, ];
     # return final dataframe
