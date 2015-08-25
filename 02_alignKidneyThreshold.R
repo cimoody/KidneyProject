@@ -156,6 +156,9 @@ returnProperTime <- function(originalListOfDataFrames) {
 }
 
 ## FUNCTION THAT PLOTS ALL STUDYID FOR ONE LAB FROM LIST RETURNED FROM getResultDateKIDSQL
+# Use a list that was returned from example below
+#   originalList <- getResultDateKIDSQL();
+#   makePlot(originalList, 0.2);
 makePlot <- function(ListOfDataFrames, shade) {
     # PLOTS ALL ECN_CSN_ID FOR ONE LAB FROM LIST RETURNED FROM getResultDateKIDSQL
     svg(sprintf("Lab_%s_gt_%g.svg", ListOfDataFrames[[1]]$LAB_COMP_CD[1],
@@ -211,6 +214,10 @@ makePlot <- function(ListOfDataFrames, shade) {
 }
 
 # Function to plot everything with new proper time
+# Use a list that was returned from example below
+#   originalList <- getResultDateKIDSQL();
+#   List <- returnProperTime(originalList);
+#   makePlot2(List, 0.2);
 makePlot2 <- function(ListOfDataFrames, shade) {
     # Plot everything with new proper time
     svg(sprintf("Lab_by_hour_%s_%s_gt_%g.svg",
@@ -316,6 +323,11 @@ getMeanSDListDataFrames <- function(ListOfDataFrames) {
 
 # Function to plot everything with
 # new mean for repeated labs and error bar of standard deviation
+# Use a list that follow the below example
+#   originalList <- getResultDateKIDSQL();
+#   List <- returnProperTime(originalList);
+#   ListMSD <- getMeanSDListDataFrames(List);
+#   makePlot3(ListMSD, 0.2);
 makePlot3 <- function(ListOfDataFrames, shade) {
     # Plot everything with new mean for repeated labs and error bar of standard deviation
     svg(sprintf("Mean_lab_by_hour_%s_%s_gt_%g.svg",
