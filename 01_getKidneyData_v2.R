@@ -1,7 +1,9 @@
 # 01_getKidneyData_v2.R
-#
+# Aug 2015
 # by Cristina Moody
 
+# Installing Libraries
+# source(file = "00_librariesVNL.R"); # if starting R for 1st time today
 
 # Load libraries
 require(data.table);
@@ -88,7 +90,12 @@ cutoff <- 20; # Setting the minimum number of labs per patient
 tID <- 1523; # Creatinine COMPONENT_ID for lab_results3_m query
 # tID <- 1520; # K COMPONENT_ID for lab_results3_m query
 # tID <- 1555; # P COMPONENT_ID for the lab_results3_m query
-#
+{
+    tID_CREAT = 1523; THRESHOLD_CREAT = 3;
+    tID_K = 1520; THRESHOLD_K = 6;
+    tID_P = 1555; THRESHOLD_P = 4; # Something is wrong here, the threshold is below the REFERENCE_HIGH
+}
+
 getResultDateKIDSQL <- function(dbfile, query, cutoff, tID){
     # returns a list of dataframes, one for each patient, for labs identified with tID that have at least
     # the cutoff of repetitions of that test. The information is selected from the SQLite database dbfile
@@ -167,4 +174,11 @@ getResultDateKIDSQL <- function(dbfile, query, cutoff, tID){
         patTLAB[[i]] <- patTLAB[[i]][order(patTLAB[[i]]$ORDERING_DATE), ];
     }
     return(patTLAB);
+}
+
+makeLists <- 0; # It takes a while to remake all the lists, so I would recommend only making the ones you need
+if (makeLists) { # Code to create lists of dataframes. Set makeLists <- 1 to run.
+    CREAT_1523_gt20 <- getResultDateKIDSQL(dbfile, labQuery, cutoff = 20, tID = tID_CREAT);
+    K_1520_gt20 <- getResultDateKIDSQL(dbfile, labQuery, cutoff = 20, tID = tID_K);
+    P_1555_gt20 <- getResultDateKIDSQL(dbfile, labQuery, cutoff = 20, tID = tID_P);
 }
