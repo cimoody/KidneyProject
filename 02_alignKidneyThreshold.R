@@ -2,8 +2,10 @@
 ## Written by Cristina Moody
 ## Aug 2015
 
-# Installing Libraries
+# Installing Libraries and functions
 # source(file = "00_librariesVNL.R"); # if starting R for 1st time today
+# source(file = "01_getKidneyData_v2.R");
+
 
 # Installing Gaussian Process Library
 require(tgp);
@@ -29,6 +31,7 @@ dDir <- "E:/KidneyData/";
 dbfile <- paste(dDir, "CKD", sep = "");
 # Access CKD SQL database
 # db <- dbConnect(SQLite(), dbname = dbfile);
+# remember to call db <- dbDisconnect(db) when finished!
 
 
 # FUNCTION TO CHANGE FACTOR TO NUMERIC
@@ -37,24 +40,44 @@ f2n <- function(val) {
     val <- as.numeric(as.character(val));
 }
 
+# tID and THRESHOLD_VALUE for Creatinine, K, and P
+{
+    tID_CREAT = 1523; THRESHOLD_CREAT = 3;
+    tID_K = 1520; THRESHOLD_K = 6;
+    tID_P = 1555; THRESHOLD_P = 4; # Something is wrong here, the threshold is below the REFERENCE_HIGH
+}
+
+# Function to return the threshold value
+getThreshold <- function(ListOfDataFrames){
+    # Function to return the threshold value for the following labs
+    tID_CREAT = 1523; THRESHOLD_CREAT = 3;
+    tID_K = 1520; THRESHOLD_K = 6;
+    tID_P = 1555; THRESHOLD_P = 4; # Something is wrong here, the threshold is below the REFERENCE_HIGH
+    THRESHOLD_VALUE <- numeric(0);
+    for (i in 1:length(ListOfDataFrames)){
+        if (is.null(nrow(ListOfDataFrames[[i]]))){
+            print(i);
+            return("ERROR IN t0Finder, ListOfDataFrames has no rows!");
+        }
+        if (ListOfDataFrames[[i]]$LAB_COMP_CD[1] == tID_CREAT) {THRESHOLD_VALUE <- THRESHOLD_CREAT;}
+        else if (ListOfDataFrames[[i]]$LAB_COMP_CD[1] == tID_K) {THRESHOLD_VALUE <- THRESHOLD_K;}
+        else if (ListOfDataFrames[[i]]$LAB_COMP_CD[1] == tID_P) {THRESHOLD_VALUE <- THRESHOLD_P;}
+        else {return("ERROR IN t0Finder, Lab does not have a THRESHOLD_VALUE!")}
+    }
+    return(THRESHOLD_VALUE);
+}
+
 # Subset into a list that only contains tests that start in a normal range.
 normalStart <- function(ListOfDataFrames) {
     # Subset into a list that only contains tests that start in a normal range.
     x <- list();
+    THRESHOLD_VALUE <- getThreshold(ListOfDataFrames)
     for(i in 1:length(ListOfDataFrames)) {
-        if ( (ListOfDataFrames[[i]]$LAB_RES_VAL_NUM[1] <= f2n(ListOfDataFrames[[i]]$REFERENCE_HIGH[1])) &
-             (ListOfDataFrames[[i]]$LAB_RES_VAL_NUM[1] >= f2n(ListOfDataFrames[[i]]$REFERENCE_LOW[1])) )
+        if ( ListOfDataFrames[[i]]$LAB_RES_VAL_NUM[1] < THRESHOLD_VALUE )
         {x[i] <- ListOfDataFrames[i];} else {x[i] <- NA}
     }
     x <- x[!is.na(x[])];
     return(x)
-}
-
-# tID and THRESHOLD_VALUE for Creatinine, K, and P
-{
-tID_CREAT = 1523; THRESHOLD_CREAT = 3;
-tID_K = 1520; THRESHOLD_K = 6;
-tID_P = 1555; THRESHOLD_P = 4;
 }
 
 # Function to get choosen t0 (when test first crosses threshold values of Creat > 3, K > 6, P > 4)
@@ -67,16 +90,12 @@ t0Finder <- function(ListOfDataFrames){
             print(i);
             return("ERROR IN t0Finder, ListOfDataFrames has no rows!");
         }
-        THRESHOLD_VALUE <- numeric(0);
-        if (ListOfDataFrames[[i]]$LAB_COMP_CD[1] == tID_CREAT) {THRESHOLD_VALUE <- THRESHOLD_CREAT;}
-        else if (ListOfDataFrames[[i]]$LAB_COMP_CD[1] == tID_K) {THRESHOLD_VALUE <- THRESHOLD_K;}
-        else if (ListOfDataFrames[[i]]$LAB_COMP_CD[1] == tID_P) {THRESHOLD_VALUE <- THRESHOLD_P;}
-        else {return("ERROR IN t0Finder, Lab does not have a THRESHOLD_VALUE!")}
+        THRESHOLD_VALUE <- getThreshold(ListOfDataFrames);
         for (j in 1:nrow(ListOfDataFrames[[i]])){
             if ( ListOfDataFrames[[i]]$LAB_RES_VAL_NUM[j] >= THRESHOLD_VALUE){
                 t0list <- rbind(t0list,
                                 data.frame(
-                                    "STUDYID_ORDERDATE" = sprintf("%s_%s", ListOfDataFrames[[i]]$STUDYID[j],
+                                    "STUDYID_ORDERTIME" = sprintf("%s_%s", ListOfDataFrames[[i]]$STUDYID[j],
                                                                 ListOfDataFrames[[i]]$ORDERING_DATE[j]),
                                     "STUDYID" = ListOfDataFrames[[i]]$STUDYID[j],
                                     "encid" = ListOfDataFrames[[i]]$encid[j],
@@ -95,8 +114,7 @@ addProperTime <- function(ListOfDataFrames, t0DataFrame){
     # ADD PROPERTIME TO EACH DATAFRAME IN LIST
     for (i in 1:nrow(t0DataFrame)) {
         for (j in 1:length(ListOfDataFrames)){
-            if ( ListOfDataFrames[[j]]$STUDYID[1]==t0DataFrame$STUDYID[i] &
-                 ListOfDataFrames[[j]]$encid[1]==t0DataFrame$encid[i] ){
+            if ( ListOfDataFrames[[j]]$STUDYID[1]==t0DataFrame$STUDYID[i] ){
                 ListOfDataFrames[[j]]$PROPER_TIME <-
                     ListOfDataFrames[[j]]$ORDERING_DATE -
                     t0DataFrame$t0[i];
@@ -106,9 +124,9 @@ addProperTime <- function(ListOfDataFrames, t0DataFrame){
     return(ListOfDataFrames);
 }
 
-# Function to return a dataframe with the proper time
+# Function to return a dataframe with the proper time #
 returnProperTime <- function(originalListOfDataFrames) {
-    # Return a dataframe with the proper time. Set to start uninteresting patients at t0 = 0
+    # Return a dataframe with the proper time. ### Set to start uninteresting patients at t0 = 0 ###
     ListOfDataFrames <- normalStart(originalListOfDataFrames);
     if (is.numeric(ListOfDataFrames)) {return(0);}
     properTime <- t0Finder(ListOfDataFrames);
@@ -141,6 +159,7 @@ makePlot <- function(ListOfDataFrames, shade) {
     for(i in 1:length(ListOfDataFrames)){
         ymax[i] <- max(c(max(ListOfDataFrames[[i]][, 2][!is.na(ListOfDataFrames[[i]][, 2])]),
                          as.numeric(as.character(ListOfDataFrames[[1]]$REFERENCE_HIGH[1])) ));
+        ymax[i] <- max(ymax[i], getThreshold(ListOfDataFrames));
         ymin[i] <- min(c(min(ListOfDataFrames[[i]][, 2][!is.na(ListOfDataFrames[[i]][, 2])]),
                          as.numeric(as.character(ListOfDataFrames[[1]]$REFERENCE_LOW[1])) ));
         xmax[i] <- max(c(max(ListOfDataFrames[[i]][, 1][!is.na(ListOfDataFrames[[i]][, 1])]),
@@ -161,20 +180,23 @@ makePlot <- function(ListOfDataFrames, shade) {
     abline(h = as.numeric(as.character(ListOfDataFrames[[1]]$REFERENCE_LOW[1])), col = "red");
     # Reference high
     abline(h = as.numeric(as.character(ListOfDataFrames[[1]]$REFERENCE_HIGH[1])), col = "red");
+    THRESHOLD_VALUE <- getThreshold(ListOfDataFrames);
+    abline(h = THRESHOLD_VALUE, col = "dark blue");
     for (i in 1:length(ListOfDataFrames)){
         lines(ListOfDataFrames[[i]]$ORDERING_DATE, ListOfDataFrames[[i]]$LAB_RES_VAL_NUM,
               bg = alpha(co[i], shade), col = alpha(co[i], shade+0.1), pch = 21,
               type = "b", panel.first = grid(),
               xlim = range(min(xmin), max(xmax)),
               ylim = range(min(ymin), max(ymax)),
-              xlab = "Time (days)",
-              ylab = sprintf("Lab %s   (%s)",
-                             ListOfDataFrames[[1]]$LAB_COMP_CD[1],
+              xlab = "Time (hours)",
+              ylab = sprintf("Lab %s  (%s)", ListOfDataFrames[[1]]$LAB_COMP_CD[1],
                              ListOfDataFrames[[1]]$REFERENCE_UNIT[1]));
         # Reference low
         abline(h = as.numeric(as.character(ListOfDataFrames[[i]]$REFERENCE_LOW[1])), col = "red");
         # Reference high
         abline(h = as.numeric(as.character(ListOfDataFrames[[i]]$REFERENCE_HIGH[1])), col = "red");
+        THRESHOLD_VALUE <- getThreshold(ListOfDataFrames);
+        abline(h = THRESHOLD_VALUE, col = "dark blue");
     }
     nm <-deparse(substitute(ListOfDataFrames));
     print(nm);
@@ -186,7 +208,7 @@ makePlot <- function(ListOfDataFrames, shade) {
 # Function to plot everything with new proper time
 makePlot2 <- function(ListOfDataFrames, shade) {
     # Plot everything with new proper time
-    svg(sprintf("Lab_by_day_%s_%s_gt_%g.svg",
+    svg(sprintf("Lab_by_hour_%s_%s_gt_%g.svg",
                 ListOfDataFrames[[1]]$LAB_PX_CD[1], ListOfDataFrames[[1]]$LAB_COMP_CD[1],
                 ListOfDataFrames[[1]]$MIN_RAW_LABS), width = 7, height = 5);
     ymax <- c(); ymin <- c();
@@ -194,6 +216,7 @@ makePlot2 <- function(ListOfDataFrames, shade) {
     for(i in 1:length(ListOfDataFrames)){
         ymax[i] <- max(c(max(ListOfDataFrames[[i]][, 2][!is.na(ListOfDataFrames[[i]][, 2])]),
                          as.numeric(as.character(ListOfDataFrames[[1]]$REFERENCE_HIGH[1])) ));
+        ymax[i] <- max(ymax[i], getThreshold(ListOfDataFrames));
         ymin[i] <- min(c(min(ListOfDataFrames[[i]][, 2][!is.na(ListOfDataFrames[[i]][, 2])]),
                          as.numeric(as.character(ListOfDataFrames[[1]]$REFERENCE_LOW[1])) ));
         xmax[i] <- max(as.numeric(ListOfDataFrames[[i]]$PROPER_TIME));
@@ -206,34 +229,36 @@ makePlot2 <- function(ListOfDataFrames, shade) {
              type = "o", panel.first = grid(),
              xlim = range(min(xmin), max(xmax)),
              ylim = range(min(ymin), max(ymax)),
-             xlab = "Time (days)",
-             ylab = sprintf("Lab %s_%s   (%s)", ListOfDataFrames[[1]]$LAB_PX_CD[1],
-                            ListOfDataFrames[[1]]$LAB_COMP_CD[1],
-                            ListOfDataFrames[[1]]$LAB_RES_UNIT[1]));
+             xlab = "Time (hours)",
+             ylab = sprintf("Lab %s  (%s)", ListOfDataFrames[[1]]$LAB_COMP_CD[1],
+                            ListOfDataFrames[[1]]$REFERENCE_UNIT[1]));
         # Reference low
         abline(h = as.numeric(as.character(ListOfDataFrames[[1]]$REFERENCE_LOW[1])), col = "red");
         # Reference high
         abline(h = as.numeric(as.character(ListOfDataFrames[[1]]$REFERENCE_HIGH[1])), col = "red");
+        THRESHOLD_VALUE <- getThreshold(ListOfDataFrames);
+        abline(h = THRESHOLD_VALUE, col = "dark blue");
         for (i in 1:length(ListOfDataFrames)){
             lines(ListOfDataFrames[[i]]$PROPER_TIME, ListOfDataFrames[[i]]$LAB_RES_VAL_NUM,
                   bg = alpha(co[i], shade), col = alpha(co[i], shade+0.1), pch = 21,
                   type = "b", panel.first = grid(),
                   xlim = range(min(xmin), max(xmax)),
                   ylim = range(min(ymin), max(ymax)),
-                  xlab = "Time (days)",
-                  ylab = sprintf("Lab %s_%s   (%s)", ListOfDataFrames[[1]]$LAB_PX_CD[1],
-                                 ListOfDataFrames[[1]]$LAB_COMP_CD[1],
-                                 ListOfDataFrames[[1]]$LAB_RES_UNIT[1]));
+                  xlab = "Time (hours)",
+                  ylab = sprintf("Lab %s  (%s)", ListOfDataFrames[[1]]$LAB_COMP_CD[1],
+                                 ListOfDataFrames[[1]]$REFERENCE_UNIT[1]));
             # Reference low
             abline(h = as.numeric(as.character(ListOfDataFrames[[i]]$REFERENCE_LOW[1])), col = "red");
             # Reference high
             abline(h = as.numeric(as.character(ListOfDataFrames[[i]]$REFERENCE_HIGH[1])), col = "red");
+            THRESHOLD_VALUE <- getThreshold(ListOfDataFrames);
+            abline(h = THRESHOLD_VALUE, col = "dark blue");
         }
     }
     nm <-deparse(substitute(ListOfDataFrames));
     print(nm);
     dev.off();
-    return( svg(sprintf("Lab_by_day_%s_%s_gt_%g.svg",
+    return( svg(sprintf("Lab_by_hour_%s_%s_gt_%g.svg",
                         ListOfDataFrames[[1]]$LAB_PX_CD[1], ListOfDataFrames[[1]]$LAB_COMP_CD[1],
                         ListOfDataFrames[[1]]$MIN_RAW_LABS), width = 7, height = 5) );
 }
@@ -271,7 +296,7 @@ getMeanSDListDataFrames <- function(ListOfDataFrames) {
         sds <- aggregate(LAB_RES_VAL_NUM ~ ORDERING_DATE, data = ListOfDataFrames[[j]], FUN = getSD);
         # Function to get the mean value of labs repeated on a given day
         means <- aggregate(LAB_RES_VAL_NUM ~ ORDERING_DATE, data = ListOfDataFrames[[j]], FUN = mean);
-        # Function that merges the days and keeps the maximum LAB_RES_VAL_NUM - from the internet.
+        # Function that merges the hours and keeps the maximum LAB_RES_VAL_NUM - from the internet.
         newListOfDataFrames[[j]] <- do.call(rbind,
                                             lapply(split(newListOfDataFrames[[j]],
                                                          newListOfDataFrames[[j]]$ORDERING_DATE),
@@ -288,7 +313,7 @@ getMeanSDListDataFrames <- function(ListOfDataFrames) {
 # new mean for repeated labs and error bar of standard deviation
 makePlot3 <- function(ListOfDataFrames, shade) {
     # Plot everything with new mean for repeated labs and error bar of standard deviation
-    svg(sprintf("Mean_lab_by_day_%s_%s_gt_%g.svg",
+    svg(sprintf("Mean_lab_by_hour_%s_%s_gt_%g.svg",
                 ListOfDataFrames[[1]]$LAB_PX_CD[1], ListOfDataFrames[[1]]$LAB_COMP_CD[1],
                 ListOfDataFrames[[1]]$MIN_RAW_LABS), width = 7, height = 5);
     ymax <- c(); ymin <- c();
@@ -297,6 +322,7 @@ makePlot3 <- function(ListOfDataFrames, shade) {
         ymax[i] <- max(c(max(ListOfDataFrames[[i]][, 2][!is.na(ListOfDataFrames[[i]][, 2])]
                              + ListOfDataFrames[[i]][which.max(ListOfDataFrames[[i]][,2]),12], # Adds the error bar
                              as.numeric(as.character(ListOfDataFrames[[1]]$REFERENCE_HIGH[1])) )));
+        ymax[i] <- max(ymax[i], getThreshold(ListOfDataFrames));
         ymin[i] <- min(c(min(ListOfDataFrames[[i]][, 2][!is.na(ListOfDataFrames[[i]][, 2])]
                              - ListOfDataFrames[[i]][which.min(ListOfDataFrames[[i]][,2]),12], # Subtracts the error bar
                              as.numeric(as.character(ListOfDataFrames[[1]]$REFERENCE_LOW[1])) )));
@@ -311,10 +337,9 @@ makePlot3 <- function(ListOfDataFrames, shade) {
              type = "o", panel.first = grid(),
              xlim = range(min(xmin), max(xmax)),
              ylim = range(min(ymin), max(ymax)),
-             xlab = "Time (days)",
-             ylab = sprintf("Lab %s_%s   (%s)", ListOfDataFrames[[1]]$LAB_PX_CD[1],
-                            ListOfDataFrames[[1]]$LAB_COMP_CD[1],
-                            ListOfDataFrames[[1]]$LAB_RES_UNIT[1]));
+             xlab = "Time (hours)",
+             ylab = sprintf("Lab %s  (%s)", ListOfDataFrames[[1]]$LAB_COMP_CD[1],
+                            ListOfDataFrames[[1]]$REFERENCE_UNIT[1]));
         # Add Errorbars with SD_ORD_VAL
         with(data = ListOfDataFrames[[i]],
              expr = errbar(PROPER_TIME, LAB_RES_VAL_NUM, LAB_RES_VAL_NUM + SD_ORD_VAL,
@@ -324,16 +349,17 @@ makePlot3 <- function(ListOfDataFrames, shade) {
         abline(h = as.numeric(as.character(ListOfDataFrames[[1]]$REFERENCE_LOW[1])), col = "red");
         # Reference high
         abline(h = as.numeric(as.character(ListOfDataFrames[[1]]$REFERENCE_HIGH[1])), col = "red");
+        THRESHOLD_VALUE <- getThreshold(ListOfDataFrames);
+        abline(h = THRESHOLD_VALUE, col = "dark blue");
         for (i in 1:length(ListOfDataFrames)){
             lines(ListOfDataFrames[[i]]$PROPER_TIME, ListOfDataFrames[[i]]$LAB_RES_VAL_NUM,
                   bg = alpha(co[i], shade), col = alpha(co[i], shade+0.1), pch = 21,
                   type = "b", panel.first = grid(),
                   xlim = range(min(xmin), max(xmax)),
                   ylim = range(min(ymin), max(ymax)),
-                  xlab = "Time (days)",
-                  ylab = sprintf("Lab %s_%s   (%s)", ListOfDataFrames[[1]]$LAB_PX_CD[1],
-                                 ListOfDataFrames[[1]]$LAB_COMP_CD[1],
-                                 ListOfDataFrames[[1]]$LAB_RES_UNIT[1]));
+                  xlab = "Time (hours)",
+                  ylab = sprintf("Lab %s  (%s)", ListOfDataFrames[[1]]$LAB_COMP_CD[1],
+                                 ListOfDataFrames[[1]]$REFERENCE_UNIT[1]));
             # Add Errorbars with SD_ORD_VAL
             with(data = ListOfDataFrames[[i]],
                  expr = errbar(PROPER_TIME, LAB_RES_VAL_NUM, LAB_RES_VAL_NUM + SD_ORD_VAL,
@@ -343,12 +369,14 @@ makePlot3 <- function(ListOfDataFrames, shade) {
             abline(h = as.numeric(as.character(ListOfDataFrames[[i]]$REFERENCE_LOW[1])), col = "red");
             # Reference high
             abline(h = as.numeric(as.character(ListOfDataFrames[[i]]$REFERENCE_HIGH[1])), col = "red");
+            THRESHOLD_VALUE <- getThreshold(ListOfDataFrames);
+            abline(h = THRESHOLD_VALUE, col = "dark blue");
         }
     }
     nm <-deparse(substitute(ListOfDataFrames));
     print(nm);
     dev.off();
-    return( svg(sprintf("Mean_lab_by_day_%s_%s_gt_%g.svg",
+    return( svg(sprintf("Mean_lab_by_hour_%s_%s_gt_%g.svg",
                         ListOfDataFrames[[1]]$LAB_PX_CD[1], ListOfDataFrames[[1]]$LAB_COMP_CD[1],
                         ListOfDataFrames[[1]]$MIN_RAW_LABS), width = 7, height = 5) );
 }
