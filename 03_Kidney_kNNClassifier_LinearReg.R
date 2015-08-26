@@ -256,13 +256,13 @@ reorderPTKID <- function(ListOfDataFrames, HoursPerTimeStep = 1){
         ChangingDF <- ListOfDataFrames[[j]][varsChanging];
         NotChangingDF <- ListOfDataFrames[[j]][varsNotChanging][1,];
         if (as.numeric(min(ChangingDF$PROPER_TIME)) > -10) {
-            print(j); print("AAAAAA");
+            # print(j); print("AAAAAA");
             ChangingDF <- case1(ChangingDF, varsChanging);
         } else if ( as.numeric(min(ChangingDF$PROPER_TIME)) < -10) {
-            print(j); print("BBBBBB");
+            # print(j); print("BBBBBB");
             ChangingDF <- case2(ChangingDF, varsChanging);
         } else if ( as.numeric(min(ChangingDF$PROPER_TIME)) == -10){
-            print(j); print("CCCCCC");
+            # print(j); print("CCCCCC");
             ChangingDF <- case3(ChangingDF, varsChanging);
         } else {print("BREAK"); break;}
         Order <- cbind(NotChangingDF, ChangingDF);
@@ -340,4 +340,20 @@ getTrainDF <- function(ListOfDataFrames){
         TrainDF <- rbind(ListOfDataFrames[[j]], TrainDF);
     }
     return(TrainDF);
+}
+
+makeTimeTrain <- 0; HoursPerTimeStep <- 4; random <- 0; ## Set parameters HERE!
+if (makeTimeTrain){
+    TimeTrain_K <- getTimeTrainMatrix(K_1520_gt20, random, HoursPerTimeStep);
+    TimeTrain_P <- getTimeTrainMatrix(P_1555_gt20, random, HoursPerTimeStep);
+    TimeTrain_Creat <- getTimeTrainMatrix(CREAT_1523_gt20, random, HoursPerTimeStep);
+
+    # Making into one list
+    goodKidneyDataOrdered10StepsBeforeThreshold <- rbind(TimeTrain_K, TimeTrain_Creat);
+    goodKidneyDataOrdered10StepsBeforeThreshold <- rbind(goodKidneyDataOrdered10StepsBeforeThreshold, TimeTrain_P);
+    # Renaming and saving data
+    goodKidneyDataOrdered10StepsBeforeThreshold_alignMax <- goodKidneyDataOrdered10StepsBeforeThreshold;
+    save(goodKidneyDataOrdered10StepsBeforeThreshold_alignMax,
+         TimeTrain_K, TimeTrain_P, TimeTrain_Creat,
+         file = sprintf("%s%s", dDir, "TimeOrderedKidney_data_gt20_alignedMax.rda"));
 }
