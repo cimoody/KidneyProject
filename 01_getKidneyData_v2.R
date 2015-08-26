@@ -140,6 +140,7 @@ getResultDateKIDSQL <- function(dbfile, query, cutoff, tID){
     # Isolatinge the ORDERING_DATE
     trTimeLAB <- list(c(length(v)));
     for (i in 1:length(v)){
+        # SETS ORDERING_DATE to be in hours (so all "dates" in ORDERING_DATE2 and PROPER_TIME are also hours)
         trTimeLAB[[i]] <- pat[[1]][i][[1]]$lab_tkn_dt_m * 24 + pat[[1]][i][[1]]$lab_tkn_tm;
         # trTimeLAB[[i]] <- as.Date(pat[[1]][i][[1]]$ORDERING_DATE,format = "%m/%d/%Y %H:%M");
     }
