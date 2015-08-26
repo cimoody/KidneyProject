@@ -276,7 +276,7 @@ reorderPTKID <- function(ListOfDataFrames, HoursPerTimeStep = 1){
 }
 
 # Getting matrix for 'meta' patient for regression from lists
-getTimeTrainMatrix <- function(originalListOfDataFrames, random = 1){
+getTimeTrainMatrix <- function(originalListOfDataFrames, random = 1, HoursPerTimeStep = 1){
     # Getting matrix for 'meta' patient for regression from lists in time
     # Function returnProperTime() from alignThreshold.R - returns PROPER_TIME and INT_FLAG
     ListOfDataFrames <- returnProperTime(originalListOfDataFrames); # def in 02_alignKidneyThreshold.R
@@ -289,7 +289,7 @@ getTimeTrainMatrix <- function(originalListOfDataFrames, random = 1){
     # negative days between 6 months and 2 years before threshold (in hours)
     ListOfDataFrames <- startPTIME(ListOfDataFrames, random); # def above
     # Organizing into giant dataframe with only 10 days before threshold (in hours)
-    TrainDF <- reorderPTKID(ListOfDataFrames); # def above
+    TrainDF <- reorderPTKID(ListOfDataFrames, HoursPerTimeStep); # def above
     #     # Subset TrainDF into only interesting cases (INT_FLAG==1) # Oleg said to remove
     #     TrainDF <- TrainDF[TrainDF$INT_FLAG==1, ];
     # return final dataframe
