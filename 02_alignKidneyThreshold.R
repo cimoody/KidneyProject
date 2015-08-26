@@ -77,6 +77,10 @@ normalStart <- function(ListOfDataFrames) {
     # Subset into a list that only contains tests that start in a normal range.
     x <- list();
     THRESHOLD_VALUE <- getThreshold(ListOfDataFrames)
+    if (is.null(length(ListOfDataFrames)) ) {
+        print("ERROR IN normalStart, ListOfDataFrames is not a list!");
+        return(0);
+    }
     for(i in 1:length(ListOfDataFrames)) {
         if ( ListOfDataFrames[[i]]$LAB_RES_VAL_NUM[1] < THRESHOLD_VALUE )
         {x[i] <- ListOfDataFrames[i];} else {x[i] <- NA}
@@ -133,7 +137,7 @@ addProperTime <- function(ListOfDataFrames, t0DataFrame){
 returnProperTime <- function(originalListOfDataFrames) {
     # Return a dataframe with the proper time. ### Set to start uninteresting patients at t0 = 0 ###
     ListOfDataFrames <- normalStart(originalListOfDataFrames);
-    if (is.numeric(ListOfDataFrames)) {return(0);}
+    if (length(ListOfDataFrames)==0) {print("No dataframes in list pass normalStart()"); return(0);}
     properTime <- t0Finder(ListOfDataFrames);
     if (length(properTime)==0) {
         adjustedList <- ListOfDataFrames;
