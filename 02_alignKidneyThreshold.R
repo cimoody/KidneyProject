@@ -151,6 +151,7 @@ returnProperTime <- function(originalListOfDataFrames) {
         else {
             adjustedList[[j]]$INT_FLAG <- 1;
         }
+        adjustedList[[j]]$THRESHOLD_VALUE <- getThreshold(adjustedList[j]);
     }
     return(adjustedList);
 }
