@@ -213,11 +213,11 @@ reorderPT <- function(ListOfDataFrames){
     #       names(ListOfDataFrames[[j]])
     #       [1] "ORDERING_DATE"   "LAB_RES_VAL_NUM" "LAB_RES_UNIT"    "STUDYID"         "orderid"
     #       [6] "encid"           "REFERENCE_HIGH"  "REFERENCE_LOW"   "LAB_COMP_CD"     "LAB_PX_CD"
-    #       [11] "MIN_RAW_LABS"   "ORDERING_DATE2"  "PROPER_TIME"
+    #       [11] "MIN_RAW_LABS"   "ORDERING_DATE2"  "PROPER_TIME"     "THRESHOLD_VALUE"
     newOrder <- data.frame();
     varsNotChanging <- c("STUDYID", "MIN_RAW_LABS", "INT_FLAG",
                          "LAB_COMP_CD", "LAB_RES_UNIT",
-                         "REFERENCE_LOW", "REFERENCE_HIGH");
+                         "REFERENCE_LOW", "REFERENCE_HIGH", "THRESHOLD_VALUE");
     varsChanging <- c("PROPER_TIME", "LAB_RES_VAL_NUM", "SD_ORD_VAL",  #### DO NOT CHANGE THIS VARIABLE (YOU WILL BREAK IT)
                       "ORDERING_DATE2", "ORDERING_DATE", "orderid", "encid", "LAB_PX_CD"); # Plus WEIGHT
     for (j in 1:length(ListOfDataFrames)){
@@ -241,6 +241,8 @@ reorderPT <- function(ListOfDataFrames){
             ChangingDF <- case3(ChangingDF, varsChanging);
         } else {print("BREAK"); break;}
         Order <- cbind(NotChangingDF, ChangingDF);
+        # Normalizing THRESHOLD_VALUE to THRESHOLD_VALUE/REFERENCE_HIGH
+        Order$THRESHOLD_VALUE <- Order$THRESHOLD_VALUE/f2n(Order$REFERENCE_HIGH);
         rownames(Order) <- sprintf("%s.%s_%s", NotChangingDF$encid,
                                    NotChangingDF$STUDYID, ChangingDF$`ORDERING_DATE_-10`);
         newOrder <- rbind(Order, newOrder);
@@ -266,5 +268,50 @@ getTimeTrainMatrix <- function(originalListOfDataFrames, random = 1){
     #     # Subset TrainDF into only interesting cases (INT_FLAG==1) # Oleg said to remove
     #     TrainDF <- TrainDF[TrainDF$INT_FLAG==1, ];
     # return final dataframe
+    return(TrainDF);
+}
+
+
+# Not ordered in time:
+# Getting matrix for 'meta' patient for regression from lists
+getTrainMatrix <- function(originalListOfDataFrames){
+    # Getting matrix for 'meta' patient for regression from lists
+    # Function returnProperTime() from alignThreshold.R - returns PROPER_TIME and INT_FLAG
+    ListOfDataFrames <- returnProperTime(originalListOfDataFrames);
+    # Removing labs that are repeated on the same day and replacing with mean and sd
+    ListOfDataFrames <- getMeanSDListDataFrames(ListOfDataFrames);
+    # Creating ORDERING_DATE2
+    ListOfDataFrames <- addORDDATE2(ListOfDataFrames);
+    # Starting patients that do not cross threshold at random
+    # negative days between 6 months and 2 years before threshold
+    ListOfDataFrames <- startPTIME(ListOfDataFrames);
+    # Creating giant dataframe of all the dataframes
+    TrainDF <- getTrainDF(ListOfDataFrames);
+    #     # Subset TrainDF into only interesting cases (INT_FLAG==1) # Oleg said to remove
+    #     TrainDF <- TrainDF[TrainDF$INT_FLAG==1, ];
+    # Linear regression package cannot use days, so changing to numeric
+    TrainDF$PROPER_TIME <- as.numeric(TrainDF$PROPER_TIME);
+    TrainDF$ORDERING_DATE2 <- as.numeric(TrainDF$ORDERING_DATE2);
+    # Normalizing LAB_RES_VAL_NUM to LAB_RES_VAL_NUM/REFERENCE_HIGH
+    TrainDF$LAB_RES_VAL_NUM <- TrainDF$LAB_RES_VAL_NUM/f2n(TrainDF$REFERENCE_HIGH);
+    TrainDF$SD_ORD_VAL <- TrainDF$SD_ORD_VAL/f2n(TrainDF$REFERENCE_HIGH);
+    # Normalizing THRESHOLD_VALUE to THRESHOLD_VALUE/REFERENCE_HIGH
+    TrainDF$THRESHOLD_VALUE <- TrainDF$THRESHOLD_VALUE/f2n(TrainDF$REFERENCE_HIGH);
+    # Adding row names for regression
+#     rownames(TrainDF) <- paste(TrainDF$ORD_NUM_VALUE, "+/-", TrainDF$SD_ORD_VAL,
+#                                TrainDF$REFERENCE_UNIT, TrainDF$CPT_CODE,
+#                                TrainDF$COMPONENT_ID, TrainDF$ORDERING_DATE2,
+#                                TrainDF$PROPER_TIME, TrainDF$ORDERING_DATE,
+#                                TrainDF$PAT_ID, sep = "_");
+    # return final dataframe
+    return(TrainDF);
+}
+# Creating giant dataframe of all the dataframes
+getTrainDF <- function(ListOfDataFrames){
+    # Creating giant dataframe of all the dataframes
+    TrainDF <- data.frame();
+    for (j in 1:length(ListOfDataFrames)) {
+        TrainDF <- rbind(ListOfDataFrames[[j]], TrainDF);
+    }
     return(TrainDF);
 }
