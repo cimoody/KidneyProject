@@ -75,6 +75,25 @@ startPTIME <- function(ListOfDataFrames, random = 1){
     return(ListOfDataFrames);
 }
 
+# Function to go through list of dataframes and
+# replace repeated labs with mean and add standard deviation column
+getMeanSDDataFrame <- function(DataFrame) {
+    # Function to go through dataframe and replace repeated labs with mean and standard deviation
+    # Create new list so not to overwrite original
+    newDataFrame <- DataFrame;
+    # Function to get the standard deviations of labs repeated on a given day
+    sds <- aggregate(LAB_RES_VAL_NUM ~ PROPER_TIME, data = DataFrame, FUN = getSD);
+    # Function to get the mean value of labs repeated on a given day
+    means <- aggregate(LAB_RES_VAL_NUM ~ PROPER_TIME, data = DataFrame, FUN = mean);
+    # Function that merges the hours and keeps the maximum LAB_RES_VAL_NUM - from the internet.
+    newDataFrame <- do.call(rbind, lapply(split(newDataFrame, newDataFrame$PROPER_TIME),
+                                          function(chunk) chunk[which.max(chunk$LAB_RES_VAL_NUM), ]));
+    # Changing the maximum LAB_RES_VAL_NUM to the mean
+    newDataFrame$LAB_RES_VAL_NUM <- means$LAB_RES_VAL_NUM;
+    # Adding the standard deviation
+    newDataFrame$SD_ORD_VAL <- sds$LAB_RES_VAL_NUM;
+    return(newDataFrame);
+}
 # nms creates a character vector with "_day" to rename the columns in a dataframe
 nms <- function(n) {
     # nms creates a character vector with "_day" to rename the columns in a dataframe
@@ -202,7 +221,7 @@ case3 <- function(thisDf, ChangingVars) {
     return(finalDf);
 }
 # Creates a training dataframe that will keep track of each point in time
-reorderPT <- function(ListOfDataFrames){
+reorderPTKID <- function(ListOfDataFrames, HoursPerTimeStep = 1){
     # Creates a training dataframe that will keep track of each point in time
     # Starts after use of
     #       originalListOfDataFrames <- getResultDateKIDSQL(...);
@@ -218,18 +237,24 @@ reorderPT <- function(ListOfDataFrames){
     varsNotChanging <- c("STUDYID", "MIN_RAW_LABS", "INT_FLAG",
                          "LAB_COMP_CD", "LAB_RES_UNIT",
                          "REFERENCE_LOW", "REFERENCE_HIGH", "THRESHOLD_VALUE");
-    varsChanging <- c("PROPER_TIME", "LAB_RES_VAL_NUM", "SD_ORD_VAL",  #### DO NOT CHANGE THIS VARIABLE (YOU WILL BREAK IT)
-                      "ORDERING_DATE2", "ORDERING_DATE", "orderid", "encid", "LAB_PX_CD"); # Plus WEIGHT
+    varsChanging <- c("PROPER_TIME", "orderid", "encid", "LAB_PX_CD",  #### DO NOT CHANGE THIS VARIABLE (YOU WILL BREAK IT)
+                      "LAB_RES_VAL_NUM", "SD_ORD_VAL", "ORDERING_DATE2", "ORDERING_DATE");
+    timevars <- c("PROPER_TIME", "ORDERING_DATE2", "ORDERING_DATE");
     for (j in 1:length(ListOfDataFrames)){
+        # Changing time to set TimeStep
+        ListOfDataFrames[[j]][timevars] <- (ListOfDataFrames[[j]][timevars])/HoursPerTimeStep;
+        # flooring time values for integer steps
+        ListOfDataFrames[[j]][timevars] <- floor(ListOfDataFrames[[j]][timevars]);
+        # Chunking by PROPER_TIME for new TimeStep
+        ListOfDataFrames[[j]] <- getMeanSDDataFrame(ListOfDataFrames[[j]]);
+        # Changing LAB_PX_CD to character
+        ListOfDataFrames[[j]]$LAB_PX_CD <- as.character(ListOfDataFrames[[j]]$LAB_PX_CD);
+        # Normalizing LAB_RES_VAL_NUM to LAB_RES_VAL_NUM/REFERENCE_HIGH
+        ListOfDataFrames[[j]]$LAB_RES_VAL_NUM <- ListOfDataFrames[[j]]$LAB_RES_VAL_NUM/f2n(ListOfDataFrames[[j]]$REFERENCE_HIGH);
+        ListOfDataFrames[[j]]$SD_ORD_VAL <- ListOfDataFrames[[j]]$SD_ORD_VAL/f2n(ListOfDataFrames[[j]]$REFERENCE_HIGH);
+        # Creating List to pass to caseKID functions:
         ChangingDF <- ListOfDataFrames[[j]][varsChanging];
         NotChangingDF <- ListOfDataFrames[[j]][varsNotChanging][1,];
-        # Changing days to numeric
-        ChangingDF$PROPER_TIME <- as.numeric(ChangingDF$PROPER_TIME);
-        ChangingDF$ORDERING_DATE2 <- as.numeric(ChangingDF$ORDERING_DATE2);
-        ChangingDF$ORDERING_DATE <- as.numeric(ChangingDF$ORDERING_DATE);
-        # Normalizing LAB_RES_VAL_NUM to LAB_RES_VAL_NUM/REFERENCE_HIGH
-        ChangingDF$LAB_RES_VAL_NUM <- ChangingDF$LAB_RES_VAL_NUM/f2n(NotChangingDF$REFERENCE_HIGH);
-        ChangingDF$SD_ORD_VAL <- ChangingDF$SD_ORD_VAL/f2n(NotChangingDF$REFERENCE_HIGH);
         if (as.numeric(min(ChangingDF$PROPER_TIME)) > -10) {
             print(j); print("AAAAAA");
             ChangingDF <- case1(ChangingDF, varsChanging);
@@ -243,8 +268,8 @@ reorderPT <- function(ListOfDataFrames){
         Order <- cbind(NotChangingDF, ChangingDF);
         # Normalizing THRESHOLD_VALUE to THRESHOLD_VALUE/REFERENCE_HIGH
         Order$THRESHOLD_VALUE <- Order$THRESHOLD_VALUE/f2n(Order$REFERENCE_HIGH);
-        rownames(Order) <- sprintf("%s.%s_%s", NotChangingDF$encid,
-                                   NotChangingDF$STUDYID, ChangingDF$`ORDERING_DATE_-10`);
+        Order$HoursPerTimeStep <- HoursPerTimeStep;
+        rownames(Order) <- sprintf("%s_%s", NotChangingDF$STUDYID, ChangingDF$`ORDERING_DATE_-10`);
         newOrder <- rbind(Order, newOrder);
     }
     return(newOrder);
@@ -264,7 +289,7 @@ getTimeTrainMatrix <- function(originalListOfDataFrames, random = 1){
     # negative days between 6 months and 2 years before threshold (in hours)
     ListOfDataFrames <- startPTIME(ListOfDataFrames, random); # def above
     # Organizing into giant dataframe with only 10 days before threshold (in hours)
-    TrainDF <- reorderPT(ListOfDataFrames); # def above
+    TrainDF <- reorderPTKID(ListOfDataFrames); # def above
     #     # Subset TrainDF into only interesting cases (INT_FLAG==1) # Oleg said to remove
     #     TrainDF <- TrainDF[TrainDF$INT_FLAG==1, ];
     # return final dataframe
@@ -273,7 +298,8 @@ getTimeTrainMatrix <- function(originalListOfDataFrames, random = 1){
 
 
 # Not ordered in time:
-# Getting matrix for 'meta' patient for regression from lists
+# Getting matrix for 'meta' patient for regression
+# from lists use getTrainMatrix() on all Lists of Dataframes
 getTrainMatrix <- function(originalListOfDataFrames){
     # Getting matrix for 'meta' patient for regression from lists
     # Function returnProperTime() from alignThreshold.R - returns PROPER_TIME and INT_FLAG
