@@ -429,40 +429,76 @@ createMeta <- function(mDF){
     # Function takes merged dataframe of the time population data and Ordered10DaysBeforeThreshold
     # to create and clean up a new dataframe that is returned.
     mergedDFg <- mDF;
+    tID_CREAT = 1523; THRESHOLD_CREAT = 3;
+    tID_K = 1520; THRESHOLD_K = 6;
+    tID_P = 1555; THRESHOLD_P = 4; # Something is wrong here, the threshold is below the REFERENCE_HIGH
+
     # Fixing REFERENCE_LOW
     #     summary(table(mergedDFg$REFERENCE_LOW));
     #     summary((mergedDFg$REFERENCE_LOW));
     #     class(mergedDFg$REFERENCE_LOW);
     faux <- mergedDFg[is.na(mergedDFg$REFERENCE_LOW),];
     faux <- setThreshold(faux);
-    faux[faux$REFERENCE_LOW
+    faux[faux$LAB_COMP_CD==tID_K
+         & is.na(faux$REFERENCE_LOW), ]$REFERENCE_LOW <- mergedDFg[!is.na(mergedDFg$REFERENCE_LOW)
+                                                                   & mergedDFg$LAB_COMP_CD==tID_K,]$REFERENCE_LOW[1];
+    faux[faux$LAB_COMP_CD==tID_K
+         & is.na(faux$REFERENCE_HIGH), ]$REFERENCE_HIGH <- mergedDFg[!is.na(mergedDFg$REFERENCE_HIGH)
+                                                                     & mergedDFg$LAB_COMP_CD==tID_K,]$REFERENCE_HIGH[1];
+    faux[faux$LAB_COMP_CD==tID_CREAT
+         & is.na(faux$REFERENCE_LOW), ]$REFERENCE_LOW <- mergedDFg[!is.na(mergedDFg$REFERENCE_LOW)
+                                                                   & mergedDFg$LAB_COMP_CD==tID_CREAT,]$REFERENCE_LOW[1];
+    faux[faux$LAB_COMP_CD==tID_CREAT
+         & is.na(faux$REFERENCE_HIGH), ]$REFERENCE_HIGH <- mergedDFg[!is.na(mergedDFg$REFERENCE_HIGH)
+                                                                     & mergedDFg$LAB_COMP_CD==tID_CREAT,]$REFERENCE_HIGH[1];
     mergedDFg[is.na(mergedDFg$REFERENCE_LOW),] <- faux;
-    mergedDFg$REFERENCE_LOW <- factor(mergedDFg$REFERENCE_LOW);
     mergedDFg$REFERENCE_LOW <- f2n(mergedDFg$REFERENCE_LOW)
     # Fixing REFERENCE_HIGH
     #     summary(table(mergedDFg$REFERENCE_HIGH));
     #     summary((mergedDFg$REFERENCE_HIGH));
     #     class(mergedDFg$REFERENCE_HIGH);
-    mergedDFg$REFERENCE_HIGH <- f2n(mergedDF$REFERENCE_HIGH)
+    faux2 <-  mergedDFg[is.na(mergedDFg$REFERENCE_HIGH), ];
+    mergedDFg$REFERENCE_HIGH <- f2n(mergedDF$REFERENCE_HIGH);
+    faux2[faux2$LAB_COMP_CD==tID_CREAT
+         & is.na(faux2$REFERENCE_HIGH), ]$REFERENCE_HIGH <- mergedDFg[!is.na(mergedDFg$REFERENCE_HIGH)
+                                                                     & mergedDFg$LAB_COMP_CD==tID_CREAT,]$REFERENCE_HIGH[1];
+    faux2[faux2$LAB_COMP_CD==tID_K
+         & is.na(faux2$REFERENCE_HIGH), ]$REFERENCE_HIGH <- mergedDFg[!is.na(mergedDFg$REFERENCE_HIGH)
+                                                                     & mergedDFg$LAB_COMP_CD==tID_K,]$REFERENCE_HIGH[1];
+    mergedDFg[is.na(mergedDFg$REFERENCE_HIGH), ] <- faux2;
     # Fixing M_AGE
     #     str(mergedDFg$M_AGE);
     #     summary(table(mergedDFg$M_AGE));
     #     summary((mergedDFg$M_AGE));
     #     class(mergedDFg$M_AGE);
-    mergedDFg$M_AGE <- as.numeric(mergedDF$M_AGE);
+    mergedDFg$M_AGE <- as.factor(mergedDF$M_AGE); ### THIS APPEARS INCORRECT
     # Fixing GENDER
-    mergedDFg$GENDER <- as.numeric(mergedDF$GENDER);
+    mergedDFg$GENDER <- as.factor(mergedDF$GENDER);
     # Fixing RACE
     #     str(mergedDFg$RACE);
     #     summary(table(mergedDFg$RACE));
     #     summary((mergedDFg$RACE));
     #     class(mergedDFg$RACE);
-    mergedDFg$CO_CD <- as.factor(mergedDF$RACE); # Can remove this column all the same
+    mergedDFg$RACE <- as.factor(mergedDF$RACE);
+    # Fixing M_DEATH_DATE
+    # Setting NA to 99999999
+    #     str(mergedDFg$M_DEATH_DATE);
+    #     summary((mergedDFg$M_DEATH_DATE));
+    #     summary(table(mergedDFg$M_DEATH_DATE));
+    #     class(mergedDFg$M_DEATH_DATE);
+    mergedDFg[is.na(mergedDFg$M_DEATH_DATE),]$M_DEATH_DATE <- 99999999;
+    # Removing remaining NA in AGE, could be fixed by looking at M_BIRTH_DATE and ORDERING_DATE_0
+    df <- mergedDFg;
+    df[apply(is.na(df), 1, any), ]; # shows 8 rows with <NA> in M_AGE
+    # Removing these rows
+    mergedDFg <- mergedDFg[!is.na(mergedDFg$M_AGE), ];
 
     # Columns to remove from classification
-    removCol <- c("MIN_RAW_LABS", "HoursPerTimeStep");
+    # removCol <- c("MIN_RAW_LABS", "HoursPerTimeStep");
 
-    # str(mergedDFg);
-    meta <- subset(mergedDFg, select=-c(MIN_RAW_LABS, CO_CD));
+    # str(mergedDFg, list.len = 999);
+    meta <- subset(mergedDFg, select=-c(MIN_RAW_LABS, HoursPerTimeStep));
     return(meta);
 }
+
+
