@@ -530,7 +530,8 @@ kid.train <- subset(meta[training, ]);
 testing <- setdiff(1:n.points, training);
 kid.test <- subset(meta[testing, ]);
 
-## CLASSIFYING FOR INT_FLAG
+## CLASSIFYING FOR INT_FLAG (Need to put this in a function if possible)
+{
 # Trying binary classifier to predict if patient belongs to INT_FLAG==1 category.
 flag.cut <- 0.5; # Because classifier returns a continous value between 0-1, not 0 or 1
 kid.knn.flag <- train.kknn(formula = formula(`INT_FLAG` ~ .),
@@ -596,30 +597,77 @@ findbest.flag.cut[which.max(findbest.flag.cut$predict.accuracy),];
 # 8     0.35     0.8622244            0.834
 # 14    0.35     0.8622244            0.834
 #
-# Again, finer
-findbest.flag.cut <- data.frame(flag.cut = numeric(0),
-                                test.accuracy = numeric(0), predict.accuracy = numeric(0));
-for (j in seq(0.40, 0.60, 0.005)){ # finding best value for flag.cut between 0.45 and 0.65
-    # print(j); flag.cut <- j;
-    kid.knn.flag1 <- kid.knn.flag$fitted.values[[3]][1:1996];
-    kid.knn.flag1 <-  vapply(kid.knn.flag1, FUN = function(x){if (x > j) 1 else 0}, FUN.VALUE = c(1));
-    CM.flag1 <- table(kid.knn.flag1, kid.train$INT_FLAG);
-    accuracy.flag1 <- (sum(diag(CM.flag1)))/sum(CM.flag1);
-    # print(accuracy.flag1);
-    prediction.flag1 <- predict(kid.knn.flag, kid.test);
-    prediction.flag1 <-  vapply(prediction.flag1, FUN = function(x){if (x > j) 1 else 0},
-                                FUN.VALUE = c(1));
-    CM.prediction.flag1 <- table(prediction.flag1, kid.test$INT_FLAG);
-    accuracy.prediction.flag1 <- (sum(diag(CM.prediction.flag1)))/sum(CM.prediction.flag1);
-    # print(accuracy.prediction.flag1);
-    findbest.flag.cut <- rbind(findbest.flag.cut, data.frame(flag.cut = j,
-                                                             test.accuracy = accuracy.flag1,
-                                                             predict.accuracy = accuracy.prediction.flag1))
-}
-plot(findbest.flag.cut$flag.cut, findbest.flag.cut$test.accuracy, panel.first = grid())
-plot(findbest.flag.cut$flag.cut, findbest.flag.cut$predict.accuracy, panel.first = grid())
-findbest.flag.cut[which.max(findbest.flag.cut$test.accuracy),];
+# # Again, finer
+# findbest.flag.cut <- data.frame(flag.cut = numeric(0),
+#                                 test.accuracy = numeric(0), predict.accuracy = numeric(0));
+# for (j in seq(0.40, 0.60, 0.005)){ # finding best value for flag.cut between 0.45 and 0.65
+#     # print(j); flag.cut <- j;
+#     kid.knn.flag1 <- kid.knn.flag$fitted.values[[3]][1:1996];
+#     kid.knn.flag1 <-  vapply(kid.knn.flag1, FUN = function(x){if (x > j) 1 else 0}, FUN.VALUE = c(1));
+#     CM.flag1 <- table(kid.knn.flag1, kid.train$INT_FLAG);
+#     accuracy.flag1 <- (sum(diag(CM.flag1)))/sum(CM.flag1);
+#     # print(accuracy.flag1);
+#     prediction.flag1 <- predict(kid.knn.flag, kid.test);
+#     prediction.flag1 <-  vapply(prediction.flag1, FUN = function(x){if (x > j) 1 else 0},
+#                                 FUN.VALUE = c(1));
+#     CM.prediction.flag1 <- table(prediction.flag1, kid.test$INT_FLAG);
+#     accuracy.prediction.flag1 <- (sum(diag(CM.prediction.flag1)))/sum(CM.prediction.flag1);
+#     # print(accuracy.prediction.flag1);
+#     findbest.flag.cut <- rbind(findbest.flag.cut, data.frame(flag.cut = j,
+#                                                              test.accuracy = accuracy.flag1,
+#                                                              predict.accuracy = accuracy.prediction.flag1))
+# }
+# plot(findbest.flag.cut$flag.cut, findbest.flag.cut$test.accuracy, panel.first = grid())
+# plot(findbest.flag.cut$flag.cut, findbest.flag.cut$predict.accuracy, panel.first = grid())
+# findbest.flag.cut[which.max(findbest.flag.cut$test.accuracy),];
 #   flag.cut test.accuracy predict.accuracy
 #      0.4     0.8622244            0.834
 #      0.6     0.8622244            0.834
 # Setting flag.cut to best f value of 0.5 on line 535
+}
+
+## Linear Regression
+{## Linear regression
+reg3 <- lm(`THRESHOLD_TIME` ~ `LAB_COMP_ID` + `LAB_PX_CD` +
+               `ORD_NUM_VALUE_0` + `ORD_NUM_VALUE_-1` + `ORD_NUM_VALUE_-2` +
+               `ORD_NUM_VALUE_-3` + `ORD_NUM_VALUE_-4` + `ORD_NUM_VALUE_-5` +
+               `ORD_NUM_VALUE_-6` + `ORD_NUM_VALUE_-7` + `ORD_NUM_VALUE_-8` +
+               `ORD_NUM_VALUE_-9` + `ORD_NUM_VALUE_-10` +
+               `ORDERING_DATE2_0` + `ORDERING_DATE2_-1` + `ORDERING_DATE2_-2` +
+               `ORDERING_DATE2_-3` + `ORDERING_DATE2_-4` + `ORDERING_DATE2_-5` +
+               `ORDERING_DATE2_-6` + `ORDERING_DATE2_-7` + `ORDERING_DATE2_-8` +
+               `ORDERING_DATE2_-9` + `ORDERING_DATE2_-10`,
+           data = trainset);
+summary(reg3);
+
+reg3$robse <- vcovHC(reg3, type = "HC1");
+coeftest(reg3, reg3$robse);
+threshold3_hat <- fitted(reg3); # predicted values
+as.data.frame(threshold3_hat);
+threshold3_resid <- residuals(reg3); # residuals
+as.data.frame(threshold3_resid);
+residualPlots(reg3);
+avPlots(reg3, id.n = 2, id.cex = 0.6, col = "blue");
+
+# Testing regressions
+# reg_Test <- goodDataOrdered10DaysBeforeThreshold[sample(
+#     nrow(goodDataOrdered10DaysBeforeThreshold[
+#         goodDataOrdered10DaysBeforeThreshold$INT_FLAG>0,]), 100),];
+reg_Test <- testset;
+x3 <- predict(reg3, reg_Test, interval="prediction");
+x3 <- as.data.frame(x3)
+varx3 <- c("THRESHOLD_TIME", "ORD_NUM_VALUE_-5", "ORDERING_DATE2_-5", "INT_FLAG");
+x3.1 <- reg_Test[varx3];
+x3 <- cbind(x3.1, x3);
+t3 <- x3$INT_FLAG + 22;
+x3 <- as.data.frame(x3)
+svg("Prediction_Kidney_LinearRegression.svg", width = 7, height = 7);
+plot(x3$THRESHOLD_TIME, x3$fit, pch = t3, panel.first = grid(),
+     col = alpha("blue", 1), bg = alpha("blue", .5),
+     xlim = range(0:15),  ylim=range(-1:(max(x3$fit)+max(x3$upr))));
+with(data = x3, expr = errbar(x3$THRESHOLD_TIME, x3$fit, fit + upr, fit - lwr,
+                              bg = alpha("black", 0.1), errbar.col = alpha("black", 0.4),
+                              pch = "", add = T, cap = 0.01));
+dev.off();
+plot(x3$THRESHOLD_TIME, x3$fit, pch = t3, col = alpha("blue", 1), bg = alpha("blue", .5), panel.first = grid());
+}
