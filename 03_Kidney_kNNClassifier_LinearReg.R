@@ -356,4 +356,113 @@ if (makeTimeTrain){
     save(goodKidneyDataOrdered10StepsBeforeThreshold_alignMax,
          TimeTrain_K, TimeTrain_P, TimeTrain_Creat,
          file = sprintf("%s%s", dDir, "TimeOrderedKidney_data_gt20_alignedMax.rda"));
+} else {load(file = sprintf("%s%s", dDir, "TimeOrderedKidney_data_gt20_alignedMax.rda"));)}
+
+makePop <- 0;
+getPopData <- function(dbfile){
+    # Getting population data CHOSE VARIABLES FOR CLASSIFIER HERE!
+    # Query for fields in the lab_orders_m.csv and
+    # esrd_patients_m.csv (popQuery1) or ckd_patients_m.csv (popQuery2) files
+    popQuery1="
+    SELECT
+    t1.STUDYID,
+    t2.M_AGE,
+    t2.M_BIRTH_DATE,
+    t2.M_DEATH_DATE,
+    t2.GENDER,
+    t2.RACE
+    FROM
+    lab_orders_m as t1
+    INNER JOIN esrd_patients_m as t2
+    ON t1.STUDYID = t2.STUDYID";
+    popQuery2="
+    SELECT
+    t1.STUDYID,
+    t2.M_AGE,
+    t2.M_BIRTH_DATE,
+    t2.M_DEATH_DATE,
+    t2.GENDER,
+    t2.RACE
+    FROM
+    lab_orders_m as t1
+    INNER JOIN patients_m as t2
+    ON t1.STUDYID = t2.STUDYID";
+    popdata1 <- getDF(dbfile, popQuery1); # def in 01_getKidneyData_v2.R
+    popdata2 <- getDF(dbfile, popQuery2); # def in 01_getKidneyData_v2.R
+    popdata <- rbind(popdata1, popdata2);
+    popdata <- unique.data.frame(popdata); ### NOTE THAT SOME STUDYID HAVE MORE THAN ONE AGE! NOT SURE HOW TO FIX
+}
+if (makePop) {
+    popdata <- getPopData(dbfile);
+    save(popdata, file = sprintf("%s%s", dDir, "popdata.rda"));
+} else {load(file = sprintf("%s%s", dDir, "popdata.rda"));}
+
+# Merging population and lab data
+mergedDF <-  merge.data.frame(goodKidneyDataOrdered10StepsBeforeThreshold_alignMax,
+                              popdata, by = "STUDYID");
+mergedDF <- unique.data.frame(mergedDF);
+length(unique(mergedDF$STUDYID));
+# [1] 1065
+length(unique(goodKidneyDataOrdered10StepsBeforeThreshold_alignMax$STUDYID));
+# [1] 1065
+# same total number of patients, not sure how to deal with multiple ages in popdata
+
+# Function to return set the threshold value in a dataframe for the following labs
+setThreshold <- function(DataFrame){
+    # Function to return set the threshold value in a dataframe for the following labs
+    tID_CREAT = 1523; THRESHOLD_CREAT = 3;
+    tID_K = 1520; THRESHOLD_K = 6;
+    tID_P = 1555; THRESHOLD_P = 4; # Something is wrong here, the threshold is below the REFERENCE_HIGH
+    if (is.null(nrow(DataFrame))){
+        print(i);
+        return("ERROR IN t0Finder, DataFrame has no rows!");
+    }
+    for (i in 1:nrow(DataFrame)){
+        if (DataFrame$LAB_COMP_CD[i] == tID_CREAT) {DataFrame$THRESHOLD_VALUE[i] <- THRESHOLD_CREAT;}
+        else if (DataFrame$LAB_COMP_CD[i] == tID_K) {DataFrame$THRESHOLD_VALUE[i] <- THRESHOLD_K;}
+        else if (DataFrame$LAB_COMP_CD[i] == tID_P) {DataFrame$THRESHOLD_VALUE[i] <- THRESHOLD_P;}
+        else {return("ERROR IN t0Finder, Lab does not have a THRESHOLD_VALUE!")}
+    }
+    return(DataFrame);
+}
+createMeta <- function(mDF){
+    # Function takes merged dataframe of the time population data and Ordered10DaysBeforeThreshold
+    # to create and clean up a new dataframe that is returned.
+    mergedDFg <- mDF;
+    # Fixing REFERENCE_LOW
+    #     summary(table(mergedDFg$REFERENCE_LOW));
+    #     summary((mergedDFg$REFERENCE_LOW));
+    #     class(mergedDFg$REFERENCE_LOW);
+    faux <- mergedDFg[is.na(mergedDFg$REFERENCE_LOW),];
+    faux <- setThreshold(faux);
+    faux[faux$REFERENCE_LOW
+    mergedDFg[is.na(mergedDFg$REFERENCE_LOW),] <- faux;
+    mergedDFg$REFERENCE_LOW <- factor(mergedDFg$REFERENCE_LOW);
+    mergedDFg$REFERENCE_LOW <- f2n(mergedDFg$REFERENCE_LOW)
+    # Fixing REFERENCE_HIGH
+    #     summary(table(mergedDFg$REFERENCE_HIGH));
+    #     summary((mergedDFg$REFERENCE_HIGH));
+    #     class(mergedDFg$REFERENCE_HIGH);
+    mergedDFg$REFERENCE_HIGH <- f2n(mergedDF$REFERENCE_HIGH)
+    # Fixing M_AGE
+    #     str(mergedDFg$M_AGE);
+    #     summary(table(mergedDFg$M_AGE));
+    #     summary((mergedDFg$M_AGE));
+    #     class(mergedDFg$M_AGE);
+    mergedDFg$M_AGE <- as.numeric(mergedDF$M_AGE);
+    # Fixing GENDER
+    mergedDFg$GENDER <- as.numeric(mergedDF$GENDER);
+    # Fixing RACE
+    #     str(mergedDFg$RACE);
+    #     summary(table(mergedDFg$RACE));
+    #     summary((mergedDFg$RACE));
+    #     class(mergedDFg$RACE);
+    mergedDFg$CO_CD <- as.factor(mergedDF$RACE); # Can remove this column all the same
+
+    # Columns to remove from classification
+    removCol <- c("MIN_RAW_LABS", "HoursPerTimeStep");
+
+    # str(mergedDFg);
+    meta <- subset(mergedDFg, select=-c(MIN_RAW_LABS, CO_CD));
+    return(meta);
 }
