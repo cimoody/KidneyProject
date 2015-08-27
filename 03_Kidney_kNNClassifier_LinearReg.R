@@ -457,8 +457,9 @@ createMeta <- function(mDF){
     #     summary(table(mergedDFg$REFERENCE_HIGH));
     #     summary((mergedDFg$REFERENCE_HIGH));
     #     class(mergedDFg$REFERENCE_HIGH);
-    faux2 <-  mergedDFg[is.na(mergedDFg$REFERENCE_HIGH), ];
     mergedDFg$REFERENCE_HIGH <- f2n(mergedDF$REFERENCE_HIGH);
+    faux2 <-  mergedDFg[is.na(mergedDFg$REFERENCE_HIGH), ];
+
     faux2[faux2$LAB_COMP_CD==tID_CREAT
          & is.na(faux2$REFERENCE_HIGH), ]$REFERENCE_HIGH <- mergedDFg[!is.na(mergedDFg$REFERENCE_HIGH)
                                                                      & mergedDFg$LAB_COMP_CD==tID_CREAT,]$REFERENCE_HIGH[1];
@@ -500,5 +501,33 @@ createMeta <- function(mDF){
     meta <- subset(mergedDFg, select=-c(MIN_RAW_LABS, HoursPerTimeStep));
     return(meta);
 }
+
+meta <- createMeta(mergedDF);
+
+# Introducing NA's so abandoning below, may be useful later
+# # Separating AGE into decade bins for classifier
+# meta$AGE2[f2n(meta$M_AGE) < 10 & f2n(meta$M_AGE) >=  0] <- '0-10';
+# meta$AGE2[f2n(meta$M_AGE) < 20 & f2n(meta$M_AGE) >= 10] <- '10-20';
+# meta$AGE2[f2n(meta$M_AGE) < 30 & f2n(meta$M_AGE) >= 20] <- '20-30';
+# meta$AGE2[f2n(meta$M_AGE) < 40 & f2n(meta$M_AGE) >= 30] <- '30-40';
+# meta$AGE2[f2n(meta$M_AGE) < 50 & f2n(meta$M_AGE) >= 40] <- '40-50';
+# meta$AGE2[f2n(meta$M_AGE) < 60 & f2n(meta$M_AGE) >= 50] <- '50-60';
+# meta$AGE2[f2n(meta$M_AGE) < 70 & f2n(meta$M_AGE) >= 60] <- '60-70';
+# meta$AGE2[f2n(meta$M_AGE) < 80 & f2n(meta$M_AGE) >= 70] <- '70-80';
+# meta$AGE2[f2n(meta$M_AGE) <= 150 & f2n(meta$M_AGE) >= 80] <- '80+';
+# meta$AGE2[meta$AGE==">85" ] <- '80+';
+# meta$AGE2 <- factor(meta$AGE2, labels = c("0-10", "10-20", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80", "80+"))
+
+# Checking for NA's: NONE!
+naCol <- as.data.frame(apply(meta,2,function(x) any(is.na(x)) ));
+
+# Creating training and test set for classification and regression.
+n.points <- nrow(meta);
+sampling.rate <- 0.8;
+num.test.set.labels <- n.points * (1 - sampling.rate);
+training <- sample(1:n.points, sampling.rate * n.points, replace = FALSE);
+kid.train <- subset(meta[training, ]);
+testing <- setdiff(1:n.points, training);
+kid.test <- subset(meta[testing, ]);
 
 
