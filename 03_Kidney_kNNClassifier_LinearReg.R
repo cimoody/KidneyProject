@@ -57,8 +57,10 @@ addORDDATE2 <- function(ListOfDataFrames) {
 }
 
 # Function to start PROPER_TIME for INT_FLAG==0 at some random negative time before 100 days (in hours)
-startPTIME <- function(ListOfDataFrames, random = 1){
-    # Function to start PROPER_TIME for INT_FLAG==0 at some random negative time before 100 days
+startPTIME <- function(ListOfDataFrames, random = 0){
+    # Function to start PROPER_TIME for INT_FLAG==0 at
+    # random = 1: some random negative time before 100 days
+    # random = 0: aligns maximum lab value with threshold value
     x <- sample(4392:17544, length(ListOfDataFrames), replace = F); # Hours at least 6 months negative
     for (j in 1:length(ListOfDataFrames)){
         if (ListOfDataFrames[[j]]$PROPER_TIME[1] == 0 & ListOfDataFrames[[j]]$INT_FLAG[1] == 0){
@@ -324,7 +326,7 @@ getTrainMatrix <- function(originalListOfDataFrames){
     # Normalizing THRESHOLD_VALUE to THRESHOLD_VALUE/REFERENCE_HIGH
     TrainDF$THRESHOLD_VALUE <- TrainDF$THRESHOLD_VALUE/f2n(TrainDF$REFERENCE_HIGH);
     # Adding row names for regression
-#     rownames(TrainDF) <- paste(TrainDF$ORD_NUM_VALUE, "+/-", TrainDF$SD_ORD_VAL,
+#     rownames(TrainDF) <- paste(TrainDF$LAB_RES_VAL_NUM, "+/-", TrainDF$SD_ORD_VAL,
 #                                TrainDF$REFERENCE_UNIT, TrainDF$CPT_CODE,
 #                                TrainDF$COMPONENT_ID, TrainDF$ORDERING_DATE2,
 #                                TrainDF$PROPER_TIME, TrainDF$ORDERING_DATE,
@@ -522,6 +524,7 @@ meta <- createMeta(mergedDF);
 naCol <- as.data.frame(apply(meta,2,function(x) any(is.na(x)) ));
 
 # Creating training and test set for classification and regression.
+set.seed(42);
 n.points <- nrow(meta);
 sampling.rate <- 0.8;
 num.test.set.labels <- n.points * (1 - sampling.rate);
@@ -531,7 +534,8 @@ testing <- setdiff(1:n.points, training);
 kid.test <- subset(meta[testing, ]);
 
 ## CLASSIFYING FOR INT_FLAG (Need to put this in a function if possible)
-{
+diagnostic <- 0;
+if (diagnostic) {
 # Trying binary classifier to predict if patient belongs to INT_FLAG==1 category.
 flag.cut <- 0.5; # Because classifier returns a continous value between 0-1, not 0 or 1
 kid.knn.flag <- train.kknn(formula = formula(`INT_FLAG` ~ .),
@@ -541,11 +545,11 @@ kid.knn.flag;
 # train.kknn(formula = formula(INT_FLAG ~ .), data = kid.train,     kmax = 50, distance = 1)
 #
 # Type of response variable: continuous
-# minimal mean absolute error: 0.1377756
-# Minimal mean squared error: 0.1319025
+# minimal mean absolute error: 0.1347695
+# Minimal mean squared error: 0.1287463
 # Best kernel: optimal
-# Best k: 3
-kid.knn.flag1 <- kid.knn.flag$fitted.values[[3]][1:1996];
+# Best k: 2
+kid.knn.flag1 <- kid.knn.flag$fitted.values[[kid.knn.flag$best.parameters$k]][1: nrow(kid.train)];
 # Need 1 or 0
 kid.knn.flag1 <-  vapply(kid.knn.flag1, FUN = function(x){if (x > flag.cut) 1 else 0}, FUN.VALUE = c(1));
 CM.flag1 <- table(kid.knn.flag1, kid.train$INT_FLAG);
@@ -553,16 +557,25 @@ CM.flag1;
 # kid.knn.flag1    0    1
 #               0 1209  141
 #               1  134  512
+# table(kid.train$INT_FLAG,kid.train$INT_FLAG)
+#                   0    1
+#              0 1352    0
+#              1    0  644
 accuracy.flag1 <- (sum(diag(CM.flag1)))/sum(CM.flag1);
 accuracy.flag1; # [1] 0.8622244
 prediction.flag1 <- predict(kid.knn.flag, kid.test);
 prediction.flag1 <-  vapply(prediction.flag1, FUN = function(x){if (x > flag.cut) 1 else 0},
                             FUN.VALUE = c(1));
+# Confusion Matrix
 CM.prediction.flag1 <- table(prediction.flag1, kid.test$INT_FLAG);
 CM.prediction.flag1;
 # prediction.flag1      0  1
 #                   0 307  42
 #                   1  41 110
+# table(kid.test$INT_FLAG, kid.test$INT_FLAG);
+#                       0   1
+#                   0 339   0
+#                   1   0 161
 accuracy.prediction.flag1 <- (sum(diag(CM.prediction.flag1)))/sum(CM.prediction.flag1);
 accuracy.prediction.flag1; # [1] 0.834
 
@@ -571,7 +584,7 @@ findbest.flag.cut <- data.frame(flag.cut = numeric(0),
                                 test.accuracy = numeric(0), predict.accuracy = numeric(0));
 for (j in seq(0, 1, 0.05)){
     # print(j); flag.cut <- j;
-    kid.knn.flag1 <- kid.knn.flag$fitted.values[[3]][1:1996];
+    kid.knn.flag1 <- kid.knn.flag$fitted.values[[3]][1: nrow(kid.train)];
     kid.knn.flag1 <-  vapply(kid.knn.flag1, FUN = function(x){if (x > j) 1 else 0}, FUN.VALUE = c(1));
     CM.flag1 <- table(kid.knn.flag1, kid.train$INT_FLAG);
     accuracy.flag1 <- (sum(diag(CM.flag1)))/sum(CM.flag1);
@@ -596,13 +609,13 @@ findbest.flag.cut[which.max(findbest.flag.cut$predict.accuracy),];
 #   flag.cut test.accuracy predict.accuracy
 # 8     0.35     0.8622244            0.834
 # 14    0.35     0.8622244            0.834
-#
+{#
 # # Again, finer
 # findbest.flag.cut <- data.frame(flag.cut = numeric(0),
 #                                 test.accuracy = numeric(0), predict.accuracy = numeric(0));
 # for (j in seq(0.40, 0.60, 0.005)){ # finding best value for flag.cut between 0.45 and 0.65
 #     # print(j); flag.cut <- j;
-#     kid.knn.flag1 <- kid.knn.flag$fitted.values[[3]][1:1996];
+#     kid.knn.flag1 <- kid.knn.flag$fitted.values[[3]][1: nrow(kid.train)];
 #     kid.knn.flag1 <-  vapply(kid.knn.flag1, FUN = function(x){if (x > j) 1 else 0}, FUN.VALUE = c(1));
 #     CM.flag1 <- table(kid.knn.flag1, kid.train$INT_FLAG);
 #     accuracy.flag1 <- (sum(diag(CM.flag1)))/sum(CM.flag1);
@@ -625,20 +638,110 @@ findbest.flag.cut[which.max(findbest.flag.cut$predict.accuracy),];
 #      0.6     0.8622244            0.834
 # Setting flag.cut to best f value of 0.5 on line 535
 }
+}
+# Need to make classifier into a function. Pass it the full data set, desired split
+# for training and testing. Have it return the full data set with predicted INT_FLAG
+#  and formula from classification
+INTkNNclassifier <- function(metaBDF, percentTrain, flag.cut = 0.5){
+    # Function to classify each STUDYID predicted INT_FLAG.
+    # Returns a list with formula, and data with PrINT_FLAG
 
+    # Creating training and test set for classification and regression.
+    set.seed(42);
+    n.points <- nrow(metaBDF);
+    sampling.rate <- percentTrain;
+    num.test.set.labels <- n.points * (1 - sampling.rate);
+    training <- sample(1:n.points, sampling.rate * n.points, replace = FALSE);
+    kid.train <- subset(metaBDF[training, ]);
+    testing <- setdiff(1:n.points, training);
+    kid.test <- subset(metaBDF[testing, ]);
+
+    # Nearest Neightboors Classifier
+    kid.knn.flag <- train.kknn(formula = formula(`INT_FLAG` ~ .),
+                               data = kid.train, kmax = 50, distance = 1);
+    full.predict <- <- predict(kid.knn.flag, metaBDF);
+    full.predict <-  vapply(full.predict, FUN = function(x){if (x > flag.cut) 1 else 0},
+                                 FUN.VALUE = c(1));
+
+    # Full data frame with new column
+    metaBDG$PrINT_FLAG <- full.predict.flag;
+    # Removing Measured INT_FLAG
+    mINT_FLAG <- metaBDF$INT_FLAG;
+}
+# full PrINT_FLAG for the multiple generalized linear regression
+full.predict.flag <- predict(kid.knn.flag, meta);
+full.predict.flag <-  vapply(full.predict.flag, FUN = function(x){if (x > flag.cut) 1 else 0},
+                             FUN.VALUE = c(1));
+# Full data frame with new column
+meta$PrINT_FLAG <- full.predict.flag;
+# Removing Measured INT_FLAG
+mINT_FLAG <- meta$INT_FLAG;
+# Data sets for multiple linear regression
+metaR <- subset(meta, select=-c(INT_FLAG));
+kid.train.R <- subset(metaR[training, ]);
+kid.test.R <- subset(metaR[testing, ]);
 ## Linear Regression
 {## Linear regression
-reg3 <- lm(`THRESHOLD_TIME` ~ `LAB_COMP_ID` + `LAB_PX_CD` +
-               `ORD_NUM_VALUE_0` + `ORD_NUM_VALUE_-1` + `ORD_NUM_VALUE_-2` +
-               `ORD_NUM_VALUE_-3` + `ORD_NUM_VALUE_-4` + `ORD_NUM_VALUE_-5` +
-               `ORD_NUM_VALUE_-6` + `ORD_NUM_VALUE_-7` + `ORD_NUM_VALUE_-8` +
-               `ORD_NUM_VALUE_-9` + `ORD_NUM_VALUE_-10` +
+reg3 <- lm(`THRESHOLD_TIME` ~ `LAB_COMP_CD` + `LAB_PX_CD_0` + PrINT_FLAG +
+               `LAB_RES_VAL_NUM_0` + `LAB_RES_VAL_NUM_-1` + `LAB_RES_VAL_NUM_-2` +
+               `LAB_RES_VAL_NUM_-3` + `LAB_RES_VAL_NUM_-4` + `LAB_RES_VAL_NUM_-5` +
+               `LAB_RES_VAL_NUM_-6` + `LAB_RES_VAL_NUM_-7` + `LAB_RES_VAL_NUM_-8` +
+               `LAB_RES_VAL_NUM_-9` + `LAB_RES_VAL_NUM_-10` +
                `ORDERING_DATE2_0` + `ORDERING_DATE2_-1` + `ORDERING_DATE2_-2` +
                `ORDERING_DATE2_-3` + `ORDERING_DATE2_-4` + `ORDERING_DATE2_-5` +
                `ORDERING_DATE2_-6` + `ORDERING_DATE2_-7` + `ORDERING_DATE2_-8` +
                `ORDERING_DATE2_-9` + `ORDERING_DATE2_-10`,
-           data = trainset);
+           data = kid.train.R);
 summary(reg3);
+# Call:
+#     lm(formula = THRESHOLD_TIME ~ LAB_COMP_CD + LAB_PX_CD_0 + PrINT_FLAG +
+#            LAB_RES_VAL_NUM_0 + `LAB_RES_VAL_NUM_-1` + `LAB_RES_VAL_NUM_-2` +
+#            `LAB_RES_VAL_NUM_-3` + `LAB_RES_VAL_NUM_-4` + `LAB_RES_VAL_NUM_-5` +
+#            `LAB_RES_VAL_NUM_-6` + `LAB_RES_VAL_NUM_-7` + `LAB_RES_VAL_NUM_-8` +
+#            `LAB_RES_VAL_NUM_-9` + `LAB_RES_VAL_NUM_-10` + ORDERING_DATE2_0 +
+#            `ORDERING_DATE2_-1` + `ORDERING_DATE2_-2` + `ORDERING_DATE2_-3` +
+#            `ORDERING_DATE2_-4` + `ORDERING_DATE2_-5` + `ORDERING_DATE2_-6` +
+#            `ORDERING_DATE2_-7` + `ORDERING_DATE2_-8` + `ORDERING_DATE2_-9` +
+#            `ORDERING_DATE2_-10`, data = kid.train.R)
+#
+# Residuals:
+#     Min      1Q  Median      3Q     Max
+# -26.27   -5.93   -4.52   -2.13 1631.54
+#
+# Coefficients:
+#     Estimate Std. Error t value Pr(>|t|)
+# (Intercept)            3.600e+02  4.870e+02   0.739    0.460
+# LAB_COMP_CD           -2.764e-01  3.301e-01  -0.837    0.403
+# LAB_PX_CD_0            8.618e-04  1.095e-03   0.787    0.432
+# PrINT_FLAG             5.355e-01  3.338e+00   0.160    0.873
+# LAB_RES_VAL_NUM_0     -6.938e-01  2.358e+00  -0.294    0.769
+# `LAB_RES_VAL_NUM_-1`  -1.273e+01  4.904e+01  -0.260    0.795
+# `LAB_RES_VAL_NUM_-2`   2.275e+01  5.496e+01   0.414    0.679
+# `LAB_RES_VAL_NUM_-3`   1.055e+01  3.519e+01   0.300    0.764
+# `LAB_RES_VAL_NUM_-4`  -4.758e+01  3.580e+01  -1.329    0.184
+# `LAB_RES_VAL_NUM_-5`   5.087e+01  3.686e+01   1.380    0.168
+# `LAB_RES_VAL_NUM_-6`  -3.904e+01  2.934e+01  -1.330    0.184
+# `LAB_RES_VAL_NUM_-7`  -5.360e+00  2.491e+01  -0.215    0.830
+# `LAB_RES_VAL_NUM_-8`   3.632e+00  3.995e+01   0.091    0.928
+# `LAB_RES_VAL_NUM_-9`  -2.970e+01  4.829e+01  -0.615    0.539
+# `LAB_RES_VAL_NUM_-10`  4.373e+01  3.176e+01   1.377    0.169
+# ORDERING_DATE2_0       9.934e-01  4.644e-03 213.912   <2e-16 ***
+#     `ORDERING_DATE2_-1`    6.938e-03  3.758e-02   0.185    0.854
+# `ORDERING_DATE2_-2`   -4.759e-02  1.718e-01  -0.277    0.782
+# `ORDERING_DATE2_-3`    4.001e-02  1.683e-01   0.238    0.812
+# `ORDERING_DATE2_-4`    6.259e-04  3.875e-02   0.016    0.987
+# `ORDERING_DATE2_-5`    2.662e-03  3.779e-02   0.070    0.944
+# `ORDERING_DATE2_-6`   -6.027e-03  3.566e-02  -0.169    0.866
+# `ORDERING_DATE2_-7`    7.174e-03  6.166e-02   0.116    0.907
+# `ORDERING_DATE2_-8`   -6.529e-04  7.013e-02  -0.009    0.993
+# `ORDERING_DATE2_-9`    1.849e-02  5.591e-02   0.331    0.741
+# `ORDERING_DATE2_-10`  -1.015e+00  2.892e-02 -35.079   <2e-16 ***
+#     ---
+#     Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+#
+# Residual standard error: 57.87 on 1970 degrees of freedom
+# Multiple R-squared:  0.9687,	Adjusted R-squared:  0.9683
+# F-statistic:  2440 on 25 and 1970 DF,  p-value: < 2.2e-16
 
 reg3$robse <- vcovHC(reg3, type = "HC1");
 coeftest(reg3, reg3$robse);
@@ -656,7 +759,7 @@ avPlots(reg3, id.n = 2, id.cex = 0.6, col = "blue");
 reg_Test <- testset;
 x3 <- predict(reg3, reg_Test, interval="prediction");
 x3 <- as.data.frame(x3)
-varx3 <- c("THRESHOLD_TIME", "ORD_NUM_VALUE_-5", "ORDERING_DATE2_-5", "INT_FLAG");
+varx3 <- c("THRESHOLD_TIME", "LAB_RES_VAL_NUM_-5", "ORDERING_DATE2_-5", "INT_FLAG");
 x3.1 <- reg_Test[varx3];
 x3 <- cbind(x3.1, x3);
 t3 <- x3$INT_FLAG + 22;
