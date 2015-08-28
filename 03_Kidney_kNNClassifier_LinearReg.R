@@ -344,7 +344,7 @@ getTrainDF <- function(ListOfDataFrames){
     return(TrainDF);
 }
 
-makeTimeTrain <- 0; HoursPerTimeStep <- 4; random <- 0; ## Set parameters HERE!
+makeTimeTrain <- 0; HoursPerTimeStep <- 6; random <- 0; ## Set parameters HERE! HERE! HERE!
 if (makeTimeTrain){
     TimeTrain_K <- getTimeTrainMatrix(K_1520_gt20, random, HoursPerTimeStep);
     TimeTrain_P <- getTimeTrainMatrix(P_1555_gt20, random, HoursPerTimeStep);
@@ -358,7 +358,7 @@ if (makeTimeTrain){
     save(goodKidneyDataOrdered10StepsBeforeThreshold_alignMax,
          TimeTrain_K, TimeTrain_P, TimeTrain_Creat,
          file = sprintf("%s%s", dDir, "TimeOrderedKidney_data_gt20_alignedMax.rda"));
-} else {load(file = sprintf("%s%s", dDir, "TimeOrderedKidney_data_gt20_alignedMax.rda"));)}
+} else {load(file = sprintf("%s%s", dDir, "TimeOrderedKidney_data_gt20_alignedMax.rda"));}
 
 makePop <- 0;
 getPopData <- function(dbfile){
@@ -501,7 +501,10 @@ createMeta <- function(mDF){
 
     # str(mergedDFg, list.len = 999);
     meta <- subset(mergedDFg, select=-c(MIN_RAW_LABS, HoursPerTimeStep));
-    return(meta);
+    # Removing any other NA's
+    meta2 <- na.omit(meta);
+    if (nrow(meta)!=nrow(meta2)) {print("ERROR!!    ERROR!!     NA's REMOVED IN createMeta()! WHY ARE THEY THERE!")}
+    return(meta2);
 }
 
 meta <- createMeta(mergedDF);
@@ -520,7 +523,7 @@ meta <- createMeta(mergedDF);
 # meta$AGE2[meta$AGE==">85" ] <- '80+';
 # meta$AGE2 <- factor(meta$AGE2, labels = c("0-10", "10-20", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80", "80+"))
 
-# Checking for NA's: NONE!
+# Checking for NA's:
 naCol <- as.data.frame(apply(meta,2,function(x) any(is.na(x)) ));
 
 # Creating training and test set for classification and regression.
@@ -685,8 +688,6 @@ metaR <- subset(metaR, select=-c(INT_FLAG));
 # # Full data frame with new column
 # meta$PrINT_FLAG <- full.predict.flag;
 
-# Data sets for multiple linear regression
-metaR <- subset(metaR, select=-c(INT_FLAG));
 kid.train.R <- subset(metaR[training, ]);
 kid.test.R <- subset(metaR[testing, ]);
 ## Linear Regression
@@ -746,9 +747,9 @@ RegKid <- function(metaBDF, percentTrain, OnlyINT1 = 1){
     sampling.rate <- percentTrain;
     num.test.set.labels <- n.points * (1 - sampling.rate);
     training <- sample(1:n.points, sampling.rate * n.points, replace = FALSE);
-    kid.train <- subset(metaBDF[training, ]);
+    kid.train.R <- subset(metaBDF[training, ]);
     testing <- setdiff(1:n.points, training);
-    kid.test <- subset(metaBDF[testing, ]);
+    kid.test.R <- subset(metaBDF[testing, ]);
 
     # Linear Regression Model
     reg <- lm(`THRESHOLD_TIME` ~ `LAB_COMP_CD` + `LAB_PX_CD_0` + PrINT_FLAG +
