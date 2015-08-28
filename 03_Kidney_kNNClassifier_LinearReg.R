@@ -812,4 +812,4 @@ summary(reg);
 #
 # Residual standard error: 284.8 on 1972 degrees of freedom
 # Multiple R-squared:  0.3049,	Adjusted R-squared:  0.2968
-F-statistic: 37.61 on 23 and 1972 DF,  p-value: < 2.2e-16
+# F-statistic: 37.61 on 23 and 1972 DF,  p-value: < 2.2e-16
