@@ -642,7 +642,7 @@ findbest.flag.cut[which.max(findbest.flag.cut$predict.accuracy),];
 # Need to make classifier into a function. Pass it the full data set, desired split
 # for training and testing. Have it return the full data set with predicted INT_FLAG
 #  and formula from classification
-INTkNNclassifier <- function(metaBDF, percentTrain, flag.cut = 0.5){
+INTkNNclassifier <- function(metaBDF, percentTrain, flag.cut = 0.5) {
     # Function to classify each STUDYID predicted INT_FLAG.
     # Returns a list with formula, and data with PrINT_FLAG
 
@@ -659,118 +659,157 @@ INTkNNclassifier <- function(metaBDF, percentTrain, flag.cut = 0.5){
     # Nearest Neightboors Classifier
     kid.knn.flag <- train.kknn(formula = formula(`INT_FLAG` ~ .),
                                data = kid.train, kmax = 50, distance = 1);
-    full.predict <- <- predict(kid.knn.flag, metaBDF);
+    full.predict <- predict(kid.knn.flag, metaBDF);
     full.predict <-  vapply(full.predict, FUN = function(x){if (x > flag.cut) 1 else 0},
                                  FUN.VALUE = c(1));
 
     # Full data frame with new column
-    metaBDG$PrINT_FLAG <- full.predict.flag;
-    # Removing Measured INT_FLAG
-    mINT_FLAG <- metaBDF$INT_FLAG;
+    metaBDF$PrINT_FLAG <- full.predict;
+
+    rList <- list(metaBDF, kid.knn.flag);
+    return(rList);
 }
-# full PrINT_FLAG for the multiple generalized linear regression
-full.predict.flag <- predict(kid.knn.flag, meta);
-full.predict.flag <-  vapply(full.predict.flag, FUN = function(x){if (x > flag.cut) 1 else 0},
-                             FUN.VALUE = c(1));
-# Full data frame with new column
-meta$PrINT_FLAG <- full.predict.flag;
+
+rList <- INTkNNclassifier(meta, 0.8, 0.5);
+kid.knn <- rList[2][[1]];
+metaR <- rList[1][[1]];
 # Removing Measured INT_FLAG
-mINT_FLAG <- meta$INT_FLAG;
+mINT_FLAG <- metaR$INT_FLAG;
 # Data sets for multiple linear regression
-metaR <- subset(meta, select=-c(INT_FLAG));
+metaR <- subset(metaR, select=-c(INT_FLAG));
+
+# # full PrINT_FLAG for the multiple generalized linear regression
+# full.predict.flag <- predict(kid.knn, metaR);
+# full.predict.flag <-  vapply(full.predict.flag, FUN = function(x){if (x > flag.cut) 1 else 0},
+#                              FUN.VALUE = c(1));
+# # Full data frame with new column
+# meta$PrINT_FLAG <- full.predict.flag;
+
+# Data sets for multiple linear regression
+metaR <- subset(metaR, select=-c(INT_FLAG));
 kid.train.R <- subset(metaR[training, ]);
 kid.test.R <- subset(metaR[testing, ]);
 ## Linear Regression
 {## Linear regression
-reg3 <- lm(`THRESHOLD_TIME` ~ `LAB_COMP_CD` + `LAB_PX_CD_0` + PrINT_FLAG +
-               `LAB_RES_VAL_NUM_0` + `LAB_RES_VAL_NUM_-1` + `LAB_RES_VAL_NUM_-2` +
-               `LAB_RES_VAL_NUM_-3` + `LAB_RES_VAL_NUM_-4` + `LAB_RES_VAL_NUM_-5` +
-               `LAB_RES_VAL_NUM_-6` + `LAB_RES_VAL_NUM_-7` + `LAB_RES_VAL_NUM_-8` +
-               `LAB_RES_VAL_NUM_-9` + `LAB_RES_VAL_NUM_-10` +
-               `ORDERING_DATE2_0` + `ORDERING_DATE2_-1` + `ORDERING_DATE2_-2` +
-               `ORDERING_DATE2_-3` + `ORDERING_DATE2_-4` + `ORDERING_DATE2_-5` +
-               `ORDERING_DATE2_-6` + `ORDERING_DATE2_-7` + `ORDERING_DATE2_-8` +
-               `ORDERING_DATE2_-9` + `ORDERING_DATE2_-10`,
-           data = kid.train.R);
-summary(reg3);
+    reg3 <- lm(`THRESHOLD_TIME` ~ `LAB_COMP_CD` + `LAB_PX_CD_0` + PrINT_FLAG +
+                   # `LAB_RES_VAL_NUM_0` +
+                   `LAB_RES_VAL_NUM_-1` + `LAB_RES_VAL_NUM_-2` +
+                   `LAB_RES_VAL_NUM_-3` + `LAB_RES_VAL_NUM_-4` + `LAB_RES_VAL_NUM_-5` +
+                   `LAB_RES_VAL_NUM_-6` + `LAB_RES_VAL_NUM_-7` + `LAB_RES_VAL_NUM_-8` +
+                   `LAB_RES_VAL_NUM_-9` + `LAB_RES_VAL_NUM_-10` +
+                   # `ORDERING_DATE2_0` +
+                   `ORDERING_DATE2_-1` + `ORDERING_DATE2_-2` +
+                   `ORDERING_DATE2_-3` + `ORDERING_DATE2_-4` + `ORDERING_DATE2_-5` +
+                   `ORDERING_DATE2_-6` + `ORDERING_DATE2_-7` + `ORDERING_DATE2_-8` +
+                   `ORDERING_DATE2_-9` + `ORDERING_DATE2_-10`,
+               data = kid.train.R);
+    summary(reg3);
+
+
+    reg3$robse <- vcovHC(reg3, type = "HC1");
+    coeftest(reg3, reg3$robse);
+    threshold3_hat <- fitted(reg3); # predicted values
+    as.data.frame(threshold3_hat);
+    threshold3_resid <- residuals(reg3); # residuals
+    as.data.frame(threshold3_resid);
+    residualPlots(reg3);
+    avPlots(reg3, id.n = 2, id.cex = 0.6, col = "blue");
+
+    # Testing regressions
+    reg_Test <- kid.test.R;
+    x3 <- predict(reg3, reg_Test, interval="prediction");
+    x3 <- as.data.frame(x3)
+    varx3 <- c("THRESHOLD_TIME", "LAB_RES_VAL_NUM_-5", "ORDERING_DATE2_-5", "PrINT_FLAG");
+    x3.1 <- reg_Test[varx3];
+    x3 <- cbind(x3.1, x3);
+    t3 <- x3$PrINT_FLAG + 22;
+    x3 <- as.data.frame(x3)
+    # svg("Prediction_Kidney_LinearRegression.svg", width = 7, height = 7);
+    plot(x3$THRESHOLD_TIME, x3$fit, pch = t3, panel.first = grid(),
+         col = alpha("blue", 1), bg = alpha("blue", .5) ,
+         xlim = range(0:500),  ylim=range(0:500));
+    with(data = x3, expr = errbar(x3$THRESHOLD_TIME, x3$fit, fit + upr, fit - lwr,
+                                  bg = alpha("black", 0.1), errbar.col = alpha("black", 0.4),
+                                  pch = "", add = T, cap = 0.01));
+    # dev.off();
+    plot(x3$THRESHOLD_TIME, x3$fit, pch = t3, col = alpha("blue", 1), bg = alpha("blue", .5), panel.first = grid());
+}
+
+# Function for regression
+RegKid <- function(metaBDF, percentTrain, OnlyINT1 = 1){
+
+    # Deciding whether to use PrINT_FLAG = 1 only or both PrINT_FLAG = 1 & PrINT_FLAG = 0
+    if (OnlyINT1) {metaBDF <- metaBDF[metaBDF$PrINT_FLAG>0,];}
+    else {metaBDF <- metaBDF;}
+    set.seed(42);
+    n.points <- nrow(metaBDF);
+    sampling.rate <- percentTrain;
+    num.test.set.labels <- n.points * (1 - sampling.rate);
+    training <- sample(1:n.points, sampling.rate * n.points, replace = FALSE);
+    kid.train <- subset(metaBDF[training, ]);
+    testing <- setdiff(1:n.points, training);
+    kid.test <- subset(metaBDF[testing, ]);
+
+    # Linear Regression Model
+    reg <- lm(`THRESHOLD_TIME` ~ `LAB_COMP_CD` + `LAB_PX_CD_0` + PrINT_FLAG +
+                  `LAB_RES_VAL_NUM_-1` + `LAB_RES_VAL_NUM_-2` +
+                  `LAB_RES_VAL_NUM_-3` + `LAB_RES_VAL_NUM_-4` + `LAB_RES_VAL_NUM_-5` +
+                  `LAB_RES_VAL_NUM_-6` + `LAB_RES_VAL_NUM_-7` + `LAB_RES_VAL_NUM_-8` +
+                  `LAB_RES_VAL_NUM_-9` + `LAB_RES_VAL_NUM_-10` +
+                  `ORDERING_DATE2_-1` + `ORDERING_DATE2_-2` +
+                  `ORDERING_DATE2_-3` + `ORDERING_DATE2_-4` + `ORDERING_DATE2_-5` +
+                  `ORDERING_DATE2_-6` + `ORDERING_DATE2_-7` + `ORDERING_DATE2_-8` +
+                  `ORDERING_DATE2_-9` + `ORDERING_DATE2_-10`,
+              data = kid.train.R);
+
+    return(reg);
+}
+
+reg <- RegKid(metaR, .8, 1);
+summary(reg);
 # Call:
 #     lm(formula = THRESHOLD_TIME ~ LAB_COMP_CD + LAB_PX_CD_0 + PrINT_FLAG +
-#            LAB_RES_VAL_NUM_0 + `LAB_RES_VAL_NUM_-1` + `LAB_RES_VAL_NUM_-2` +
-#            `LAB_RES_VAL_NUM_-3` + `LAB_RES_VAL_NUM_-4` + `LAB_RES_VAL_NUM_-5` +
-#            `LAB_RES_VAL_NUM_-6` + `LAB_RES_VAL_NUM_-7` + `LAB_RES_VAL_NUM_-8` +
-#            `LAB_RES_VAL_NUM_-9` + `LAB_RES_VAL_NUM_-10` + ORDERING_DATE2_0 +
-#            `ORDERING_DATE2_-1` + `ORDERING_DATE2_-2` + `ORDERING_DATE2_-3` +
-#            `ORDERING_DATE2_-4` + `ORDERING_DATE2_-5` + `ORDERING_DATE2_-6` +
-#            `ORDERING_DATE2_-7` + `ORDERING_DATE2_-8` + `ORDERING_DATE2_-9` +
-#            `ORDERING_DATE2_-10`, data = kid.train.R)
+#            `LAB_RES_VAL_NUM_-1` + `LAB_RES_VAL_NUM_-2` + `LAB_RES_VAL_NUM_-3` +
+#            `LAB_RES_VAL_NUM_-4` + `LAB_RES_VAL_NUM_-5` + `LAB_RES_VAL_NUM_-6` +
+#            `LAB_RES_VAL_NUM_-7` + `LAB_RES_VAL_NUM_-8` + `LAB_RES_VAL_NUM_-9` +
+#            `LAB_RES_VAL_NUM_-10` + `ORDERING_DATE2_-1` + `ORDERING_DATE2_-2` +
+#            `ORDERING_DATE2_-3` + `ORDERING_DATE2_-4` + `ORDERING_DATE2_-5` +
+#            `ORDERING_DATE2_-6` + `ORDERING_DATE2_-7` + `ORDERING_DATE2_-8` +
+#            `ORDERING_DATE2_-9` + `ORDERING_DATE2_-10`, data = kid.train.R)
 #
 # Residuals:
 #     Min      1Q  Median      3Q     Max
-# -26.27   -5.93   -4.52   -2.13 1631.54
+# -306.58 -141.40  -94.25   20.48 3128.88
 #
 # Coefficients:
 #     Estimate Std. Error t value Pr(>|t|)
-# (Intercept)            3.600e+02  4.870e+02   0.739    0.460
-# LAB_COMP_CD           -2.764e-01  3.301e-01  -0.837    0.403
-# LAB_PX_CD_0            8.618e-04  1.095e-03   0.787    0.432
-# PrINT_FLAG             5.355e-01  3.338e+00   0.160    0.873
-# LAB_RES_VAL_NUM_0     -6.938e-01  2.358e+00  -0.294    0.769
-# `LAB_RES_VAL_NUM_-1`  -1.273e+01  4.904e+01  -0.260    0.795
-# `LAB_RES_VAL_NUM_-2`   2.275e+01  5.496e+01   0.414    0.679
-# `LAB_RES_VAL_NUM_-3`   1.055e+01  3.519e+01   0.300    0.764
-# `LAB_RES_VAL_NUM_-4`  -4.758e+01  3.580e+01  -1.329    0.184
-# `LAB_RES_VAL_NUM_-5`   5.087e+01  3.686e+01   1.380    0.168
-# `LAB_RES_VAL_NUM_-6`  -3.904e+01  2.934e+01  -1.330    0.184
-# `LAB_RES_VAL_NUM_-7`  -5.360e+00  2.491e+01  -0.215    0.830
-# `LAB_RES_VAL_NUM_-8`   3.632e+00  3.995e+01   0.091    0.928
-# `LAB_RES_VAL_NUM_-9`  -2.970e+01  4.829e+01  -0.615    0.539
-# `LAB_RES_VAL_NUM_-10`  4.373e+01  3.176e+01   1.377    0.169
-# ORDERING_DATE2_0       9.934e-01  4.644e-03 213.912   <2e-16 ***
-#     `ORDERING_DATE2_-1`    6.938e-03  3.758e-02   0.185    0.854
-# `ORDERING_DATE2_-2`   -4.759e-02  1.718e-01  -0.277    0.782
-# `ORDERING_DATE2_-3`    4.001e-02  1.683e-01   0.238    0.812
-# `ORDERING_DATE2_-4`    6.259e-04  3.875e-02   0.016    0.987
-# `ORDERING_DATE2_-5`    2.662e-03  3.779e-02   0.070    0.944
-# `ORDERING_DATE2_-6`   -6.027e-03  3.566e-02  -0.169    0.866
-# `ORDERING_DATE2_-7`    7.174e-03  6.166e-02   0.116    0.907
-# `ORDERING_DATE2_-8`   -6.529e-04  7.013e-02  -0.009    0.993
-# `ORDERING_DATE2_-9`    1.849e-02  5.591e-02   0.331    0.741
-# `ORDERING_DATE2_-10`  -1.015e+00  2.892e-02 -35.079   <2e-16 ***
+# (Intercept)           -3.450e+03  2.246e+03  -1.536 0.124707
+# LAB_COMP_CD            3.350e+00  1.534e+00   2.183 0.029151 *
+#     LAB_PX_CD_0           -1.810e-02  5.443e-03  -3.326 0.000897 ***
+#     PrINT_FLAG             5.129e+01  1.534e+01   3.345 0.000839 ***
+#     `LAB_RES_VAL_NUM_-1`  -4.204e+02  2.992e+02  -1.405 0.160222
+# `LAB_RES_VAL_NUM_-2`   1.359e+02  3.320e+02   0.409 0.682374
+# `LAB_RES_VAL_NUM_-3`   9.332e+01  1.771e+02   0.527 0.598210
+# `LAB_RES_VAL_NUM_-4`  -1.123e+02  1.628e+02  -0.690 0.490398
+# `LAB_RES_VAL_NUM_-5`   1.003e+02  1.669e+02   0.601 0.548042
+# `LAB_RES_VAL_NUM_-6`  -1.777e+02  1.492e+02  -1.191 0.233730
+# `LAB_RES_VAL_NUM_-7`   7.831e+01  1.277e+02   0.613 0.539703
+# `LAB_RES_VAL_NUM_-8`   7.870e+01  2.016e+02   0.390 0.696340
+# `LAB_RES_VAL_NUM_-9`   4.661e+01  2.431e+02   0.192 0.848002
+# `LAB_RES_VAL_NUM_-10`  1.415e+02  1.557e+02   0.909 0.363518
+# `ORDERING_DATE2_-1`    9.539e-01  1.872e-01   5.096 3.81e-07 ***
+#     `ORDERING_DATE2_-2`   -1.042e+00  6.108e-01  -1.706 0.088197 .
+# `ORDERING_DATE2_-3`    1.002e+00  5.844e-01   1.714 0.086656 .
+# `ORDERING_DATE2_-4`   -1.161e-01  1.377e-01  -0.843 0.399324
+# `ORDERING_DATE2_-5`    1.208e-01  1.304e-01   0.926 0.354397
+# `ORDERING_DATE2_-6`   -1.951e-01  1.804e-01  -1.082 0.279538
+# `ORDERING_DATE2_-7`   -1.071e-01  3.169e-01  -0.338 0.735479
+# `ORDERING_DATE2_-8`    8.957e-02  3.516e-01   0.255 0.798931
+# `ORDERING_DATE2_-9`    1.879e-01  2.737e-01   0.686 0.492528
+# `ORDERING_DATE2_-10`  -9.015e-01  1.425e-01  -6.326 3.10e-10 ***
 #     ---
 #     Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 #
-# Residual standard error: 57.87 on 1970 degrees of freedom
-# Multiple R-squared:  0.9687,	Adjusted R-squared:  0.9683
-# F-statistic:  2440 on 25 and 1970 DF,  p-value: < 2.2e-16
-
-reg3$robse <- vcovHC(reg3, type = "HC1");
-coeftest(reg3, reg3$robse);
-threshold3_hat <- fitted(reg3); # predicted values
-as.data.frame(threshold3_hat);
-threshold3_resid <- residuals(reg3); # residuals
-as.data.frame(threshold3_resid);
-residualPlots(reg3);
-avPlots(reg3, id.n = 2, id.cex = 0.6, col = "blue");
-
-# Testing regressions
-# reg_Test <- goodDataOrdered10DaysBeforeThreshold[sample(
-#     nrow(goodDataOrdered10DaysBeforeThreshold[
-#         goodDataOrdered10DaysBeforeThreshold$INT_FLAG>0,]), 100),];
-reg_Test <- testset;
-x3 <- predict(reg3, reg_Test, interval="prediction");
-x3 <- as.data.frame(x3)
-varx3 <- c("THRESHOLD_TIME", "LAB_RES_VAL_NUM_-5", "ORDERING_DATE2_-5", "INT_FLAG");
-x3.1 <- reg_Test[varx3];
-x3 <- cbind(x3.1, x3);
-t3 <- x3$INT_FLAG + 22;
-x3 <- as.data.frame(x3)
-svg("Prediction_Kidney_LinearRegression.svg", width = 7, height = 7);
-plot(x3$THRESHOLD_TIME, x3$fit, pch = t3, panel.first = grid(),
-     col = alpha("blue", 1), bg = alpha("blue", .5),
-     xlim = range(0:15),  ylim=range(-1:(max(x3$fit)+max(x3$upr))));
-with(data = x3, expr = errbar(x3$THRESHOLD_TIME, x3$fit, fit + upr, fit - lwr,
-                              bg = alpha("black", 0.1), errbar.col = alpha("black", 0.4),
-                              pch = "", add = T, cap = 0.01));
-dev.off();
-plot(x3$THRESHOLD_TIME, x3$fit, pch = t3, col = alpha("blue", 1), bg = alpha("blue", .5), panel.first = grid());
-}
+# Residual standard error: 284.8 on 1972 degrees of freedom
+# Multiple R-squared:  0.3049,	Adjusted R-squared:  0.2968
+F-statistic: 37.61 on 23 and 1972 DF,  p-value: < 2.2e-16
