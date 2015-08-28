@@ -690,7 +690,7 @@ metaR <- subset(metaR, select=-c(INT_FLAG));
 kid.train.R <- subset(metaR[training, ]);
 kid.test.R <- subset(metaR[testing, ]);
 ## Linear Regression
-{## Linear regression
+if (diagnostic) {## Linear regression
     reg3 <- lm(`THRESHOLD_TIME` ~ `LAB_COMP_CD` + `LAB_PX_CD_0` + PrINT_FLAG +
                    # `LAB_RES_VAL_NUM_0` +
                    `LAB_RES_VAL_NUM_-1` + `LAB_RES_VAL_NUM_-2` +
