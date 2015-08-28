@@ -59,3 +59,6 @@ library(DBI);
 
 install.packages("data.table");
 library(data.table);
+
+# Set figure margins so that plots will work
+par(mar=c(5.1,4.1,4.1,2.1));
