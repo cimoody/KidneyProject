@@ -814,3 +814,31 @@ summary(reg);
 # Residual standard error: 284.8 on 1972 degrees of freedom
 # Multiple R-squared:  0.3049,	Adjusted R-squared:  0.2968
 # F-statistic: 37.61 on 23 and 1972 DF,  p-value: < 2.2e-16
+
+metaBDF <- metaR[metaR$PrINT_FLAG>0,];
+set.seed(42);
+n.points <- nrow(metaBDF);
+sampling.rate <- percentTrain;
+num.test.set.labels <- n.points * (1 - sampling.rate);
+training <- sample(1:n.points, sampling.rate * n.points, replace = FALSE);
+kid.train.R <- subset(metaBDF[training, ]);
+testing <- setdiff(1:n.points, training);
+kid.test.R <- subset(metaBDF[testing, ]);
+
+reg_Test <- kid.test.R;
+x3 <- predict(reg, reg_Test, interval="prediction");
+x3 <- as.data.frame(x3)
+varx3 <- c("THRESHOLD_TIME", "LAB_RES_VAL_NUM_-5", "ORDERING_DATE2_-5", "PrINT_FLAG");
+x3.1 <- reg_Test[varx3];
+x3 <- cbind(x3.1, x3);
+t3 <- x3$PrINT_FLAG + 22;
+x3 <- as.data.frame(x3)
+# svg("Prediction_Kidney_LinearRegression.svg", width = 7, height = 7);
+plot(x3$THRESHOLD_TIME, x3$fit, pch = t3, panel.first = grid(),
+     col = alpha("blue", 1), bg = alpha("blue", .5) ,
+     xlim = range(0:500),  ylim=range(0:500));
+with(data = x3, expr = errbar(x3$THRESHOLD_TIME, x3$fit, fit + upr, fit - lwr,
+                              bg = alpha("black", 0.1), errbar.col = alpha("black", 0.4),
+                              pch = "", add = T, cap = 0.01));
+# dev.off();
+plot(x3$THRESHOLD_TIME, x3$fit, pch = t3, col = alpha("blue", 1), bg = alpha("blue", .5), panel.first = grid());
