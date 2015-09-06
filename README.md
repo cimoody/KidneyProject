@@ -1,7 +1,7 @@
 # KidneyProject
-## Code for project to predict when a patient will require dialysis
+### Code for project to predict when a patient will require dialysis
 
-''TO USE''
+**TO USE**
 1. source('00_librariesVNL.R')
 2. Change the data directory dDir to the location of your data in 
     * 01\_getKidneyData\_v2.R, line 16
