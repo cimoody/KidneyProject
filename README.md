@@ -7,9 +7,11 @@
 2. Change the data directory dDir to the location of your data in 
     * 01\_getKidneyData\_v2.R, line 16
     * 02_alignKidneyThreshold.R, line 29
-    * 03\_Kidney\_kNNClassifier_LinearReg.R, line 25
+    * 03\_Kidney\_kNNClassifier\_LinearReg.R, line 25
 3. source('01\_getKidneyData_v2.R') to get functions for making the lists of dataframes.
     * To remake and save the lists I used in my analysis, set makeLists <- 1; on line 180.
-    * To change which fields from the SQL database are saved in the lists, adjust labQuery on line 24. **Be sure to add the column throughout the entire code (Look for STUDYID to find where it needs to be added)**
-4. source('02\_alignKedneyThreshold.R') to get the functions used for retrieving the aligned time. I've called this time frame PROPER_TIME in the code
-5. source
+    * To change which fields from the SQL database are saved in the lists, adjust labQuery on line 24. **Be sure to add the column throughout the entire code (Look for STUDYID to find where it needs to be added).**
+4. source('02\_alignKedneyThreshold.R') to get the functions used for retrieving and storing the aligned time. I've called this time frame PROPER_TIME in the code.
+5. source('03\_Kidney\_kNNClassifier\_LinearReg.R') to get the functions for creating the dataframes for the 'meta'-patient. 
+    * getTimeTrainMatrix(originalListOfDataFrames, random, HoursPerTimeStep) creates a dataframe with each STUDYID as an entry and only has 10 times steps before the Threshold (or for STUDYID without a threshold crossing, the maximum lab value - use random = 0 for this alignment). Set the length of the times steps with HoursPerTimeStep. HoursPerTimeStep = 1 corresponds to 1 hour time intervals. 
+    * getTrainMatrix(originalListOfDataFrames) creates a dataframe with each lab measurement as an entry. Useful for finding where the labs are the most dense in time.
