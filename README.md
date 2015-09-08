@@ -21,4 +21,4 @@
     * The function INTkNNclassifier(metaBDF, percentTrain, flag.cut = 0.5) takes the entire 'meta'-patient dataframe from createMeta(), randomly splits it into a training set and a testing set with percentTrain (must be a number < 1) and creates a classifier using kknn in R. The flag.cut is the division on the prediction (need a flag of 0 or 1). The function returns a 2 element list: 1st element is the dataframe with a predicted flag PrINT\_FLAG column; 2nd element is the kknn classifier made over the training set (use summary() or str() to get information on the classifier).
     * The function RegKid(metaBDF, percentTrain, OnlyINT1) creates a multiple linear regression model over the dataframe percentTrain of metaBDF. The flag OnlyINT1 can be set to 1 to only perform the regression model over training entries with PrINT\_FLAG = 1. Setting OnlyINT1=0 performs the regression over training entries with both PrINT\_FLAG = 1 & PrINT\_FLAG = 0.
     * The remainder of the code is a test of a regression created with RegKid().
-    * 
+     
