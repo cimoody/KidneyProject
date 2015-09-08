@@ -15,3 +15,7 @@
 5. source('03\_Kidney\_kNNClassifier\_LinearReg.R') to get the functions for creating the dataframes for the 'meta'-patient. 
     * getTimeTrainMatrix(originalListOfDataFrames, random, HoursPerTimeStep) creates a dataframe with each STUDYID as an entry and only has 10 times steps before the Threshold (or for STUDYID without a threshold crossing, the maximum lab value - use random = 0 for this alignment). Set the length of the times steps with HoursPerTimeStep. HoursPerTimeStep = 1 corresponds to 1 hour time intervals. 
     * getTrainMatrix(originalListOfDataFrames) creates a dataframe with each lab measurement as an entry. Useful for finding where the labs are the most dense in time.
+    * getPopData() retreives the specified non-lab data per STUDYID from the SQLite database using the popQuery1 and popQuery2 queries.
+    *mergedDF on lines 403 & 405 merges the results of each STUDYID population data with the lab results from getTimeTrainMatrix().
+    * The function createMeta() on line 430 and used on line 510 cleans up the merged dataframe into a useable format for the classifier and regression tools in R.
+    * The function INTkNNclassifier(metaBDF, percentTrain, flag.cut = 0.5) takes the entire 'meta'-patient dataframe from createMeta(), randomly splits it into a training set and a testing set with percentTrain (must be a number <1) and creates a classifier using kknn in R. The flag.cut is the division on the prediction (need a flag of 0 or 1). 
